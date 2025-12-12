@@ -1,0 +1,313 @@
+/* Import Bootstrap CSS */
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Dark Green Theme - Professional Sales Dashboard */
+  --primary-color: #0d3b2e;
+  /* Dark Forest Green - Main */
+  --primary-dark: #082920;
+  /* Darker Green - Accents */
+  --primary-light: #145c47;
+  /* Lighter Green - Hover */
+  --secondary-color: #64748b;
+  /* Slate 500 - Muted gray */
+  --accent-lime: #a3e635;
+  /* Lime 400 - Primary accent */
+  --accent-emerald: #10b981;
+  /* Emerald 500 - Success */
+  --accent-yellow: #fbbf24;
+  /* Amber 400 - Warning */
+  --accent-orange: #fb923c;
+  /* Orange 400 - Sales */
+  --accent-teal: #14b8a6;
+  /* Teal 500 - Info */
+
+  /* Professional Gradients */
+  --primary-gradient: linear-gradient(135deg, #0d3b2e 0%, #145c47 100%);
+  --accent-gradient: linear-gradient(135deg, #a3e635 0%, #10b981 100%);
+  --surface-gradient: linear-gradient(180deg, rgba(248, 250, 252, 0.95) 0%, rgba(241, 245, 249, 0.9) 100%);
+
+  /* Backgrounds */
+  --bg-color: #f8fafc;
+  /* Slate 50 - Light background */
+  --sidebar-bg: #0d3b2e;
+  /* Dark green sidebar */
+  --header-bg: rgba(255, 255, 255, 0.98);
+
+  /* Dimensions */
+  --sidebar-width: 280px;
+  --header-height: 80px;
+
+  /* Professional Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+
+body {
+  /* Professional subtle gradient background */
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 30s ease infinite;
+  color: #1e293b;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Glassmorphism Utility Class */
+.glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: var(--shadow-md);
+  border-radius: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Layout Helpers */
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  background: #0d3b2e;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  position: fixed;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  transition: all 0.3s ease;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+}
+
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: 2rem;
+  padding-top: calc(var(--header-height) + 2rem);
+  overflow-x: visible;
+}
+
+.top-header {
+  height: var(--header-height);
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--sidebar-width);
+  z-index: 90;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  align-items: center;
+  padding: 0 2.5rem;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+/* Navigation Item Styles */
+.nav-item-modern {
+  position: relative;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.nav-link-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.nav-item-modern:hover .nav-link-content {
+  color: #a3e635;
+  background: rgba(163, 230, 53, 0.1);
+}
+
+.nav-item-modern.active {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
+  box-shadow: 0 4px 12px rgba(163, 230, 53, 0.3);
+}
+
+.nav-item-modern.active .nav-link-content {
+  color: #0d3b2e;
+  font-weight: 600;
+}
+
+/* Custom Scrollbar - Thin and Modern */
+::-webkit-scrollbar {
+  width: 2px !important;
+  height: 2px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent !important;
+  margin: 4px 0 !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3) !important;
+  border-radius: 10px !important;
+  transition: all 0.3s ease !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(13, 59, 46, 0.5) !important;
+  box-shadow: 0 0 6px rgba(13, 59, 46, 0.3) !important;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent !important;
+}
+
+/* Utilities */
+.bg-opacity-10 {
+  --bs-bg-opacity: 0.1;
+}
+
+
+/* Modern Project Card Styles */
+.project-card-modern,
+.subscription-card-modern {
+  cursor: pointer;
+  will-change: transform, box-shadow;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.project-card-modern:hover,
+.subscription-card-modern:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.project-card-modern:active,
+.subscription-card-modern:active {
+  transform: translateY(-2px);
+}
+
+/* Ensure dropdown menus appear above other cards */
+.subscription-card-modern:has(.show),
+.project-card-modern:has(.show) {
+  z-index: 10 !important;
+}
+
+/* Tooltip max-width override */
+.tooltip-inner {
+  max-width: none !important;
+}
+
+/* Hover lift effect for cards */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(30, 41, 59, 0.12) !important;
+}
+
+/* Disable hover effect */
+.no-hover:hover {
+  transform: none !important;
+}
+
+/* Pulse animation for deadline warnings */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+/* Pagination Styles - Remove default focus/active styles and add hover effect */
+.pagination .page-link {
+  border: 1px solid #dee2e6;
+  transition: all 0.2s ease;
+}
+
+.pagination .page-link:focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.pagination .page-link:hover:not(.active) {
+  box-shadow: 0 0 0 0.2rem rgba(13, 59, 46, 0.15) !important;
+  border-color: #145c47;
+  background-color: rgba(13, 59, 46, 0.05);
+  z-index: 2;
+}
+
+.pagination .page-item.active .page-link {
+  box-shadow: none !important;
+}
+
+.pagination .page-item.active .page-link:hover {
+  box-shadow: none !important;
+}
+
+/* Tooltip fade-in animation */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Custom tooltip padding to match custom tooltips */
+.custom-tooltip-padding {
+  padding: 8px 12px !important;
+}
