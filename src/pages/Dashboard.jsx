@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Row, Col, Card, CardBody, Badge, Progress, Button } from 'reactstrap';
 import { Users, Briefcase, CreditCard, Monitor, Building2, Calendar, CheckCircle, Clock, ArrowRight, DollarSign, TrendingUp, TrendingDown, UserMinus, AlertCircle } from 'lucide-react';
@@ -99,6 +99,14 @@ const SectionCard = ({ title, icon: Icon, color, children, link }) => {
 
 const Dashboard = () => {
     const { employees, projects, subscriptions, assets } = useGlobal();
+
+    // Track which datasets are visible in the monthly spending chart
+    const [visibleDatasets, setVisibleDatasets] = useState({
+        salaries: true,
+        subscriptions: true,
+        assets: true
+    });
+
 
     // Employee Metrics
     const employeeMetrics = useMemo(() => {
@@ -222,22 +230,51 @@ const Dashboard = () => {
             const match = sub.price?.match(/\$([\d,]+\.?\d*)/);
             if (match) {
                 const cost = parseFloat(match[1].replace(/,/g, ''));
-                totalMonthlyCost += cost;
 
                 // Check if subscription is active
                 const isActive = sub.status === 'Active' ||
                     (Array.isArray(sub.assignedTo) && sub.assignedTo.length > 0 &&
                         sub.assignedTo.some(a => (typeof a === 'object' && a.status === 'Active') || typeof a === 'string'));
 
+                // Only count active subscriptions in the total
                 if (isActive) {
+                    totalMonthlyCost += cost;
                     activeSubscriptionCost += cost;
                 }
             }
         });
 
+        // Calculate assets purchased in current month
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+
+        let currentMonthAssetCost = 0;
+        assets.forEach(asset => {
+            if (asset.purchaseDate) {
+                const purchaseDate = new Date(asset.purchaseDate);
+                if (purchaseDate.getMonth() === currentMonth && purchaseDate.getFullYear() === currentYear) {
+                    const assetPrice = parseFloat(String(asset.price || '0').replace(/,/g, ''));
+                    currentMonthAssetCost += assetPrice;
+                }
+            }
+        });
+
+        // Add asset cost to total monthly cost
+        const totalWithAssets = totalMonthlyCost + currentMonthAssetCost;
+
         const totalAnnualCost = totalMonthlyCost * 12;
         const unusedSubscriptions = subscriptions.filter(
-            sub => !sub.assignedTo || (Array.isArray(sub.assignedTo) && sub.assignedTo.length === 0)
+            sub => {
+                // Check if no users are assigned
+                const noUsers = !sub.assignedTo || (Array.isArray(sub.assignedTo) && sub.assignedTo.length === 0);
+                // Check if not assigned to any projects
+                const noProjects = !sub.selectedProjects || (Array.isArray(sub.selectedProjects) && sub.selectedProjects.length === 0);
+                // Check if subscription is active (not paused)
+                const isActive = sub.status !== 'Paused';
+                // Only flag as unused if ALL conditions are true: no users AND no projects AND active status
+                return noUsers && noProjects && isActive;
+            }
         );
 
         let wastedCost = 0;
@@ -249,7 +286,9 @@ const Dashboard = () => {
         });
 
         return {
-            totalMonthlyCost,
+            totalMonthlyCost: totalWithAssets,
+            subscriptionOnlyCost: totalMonthlyCost,
+            currentMonthAssetCost,
             totalAnnualCost,
             activeSubscriptionCost,
             unusedCount: unusedSubscriptions.length,
@@ -257,7 +296,7 @@ const Dashboard = () => {
             wastedAnnualCost: wastedCost * 12,
             costPerEmployee: employees.length > 0 ? totalMonthlyCost / employees.length : 0
         };
-    }, [subscriptions, employees]);
+    }, [subscriptions, employees, assets]);
 
     // Employee Growth Trend (Based on actual join dates and departures)
     const employeeGrowthData = useMemo(() => {
@@ -351,10 +390,27 @@ const Dashboard = () => {
 
         if (projectsWithApproachingDeadlines > 0) {
             alertList.push({
-                type: 'warning',
+                type: 'info',
                 icon: Clock,
                 message: `${projectsWithApproachingDeadlines} project${projectsWithApproachingDeadlines > 1 ? 's have' : ' has'} deadline${projectsWithApproachingDeadlines > 1 ? 's' : ''} approaching within 7 days`,
                 action: 'Review deadlines'
+            });
+        }
+
+        // Overdue projects
+        const overdueProjects = projects.filter(p => {
+            if (p.status === 'Completed') return false;
+            const deadline = new Date(p.deadline);
+            const daysRemaining = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+            return daysRemaining <= 0;
+        }).length;
+
+        if (overdueProjects > 0) {
+            alertList.push({
+                type: 'warning',
+                icon: AlertCircle,
+                message: `${overdueProjects} project${overdueProjects > 1 ? 's are' : ' is'} overdue`,
+                action: 'Update project timelines'
             });
         }
 
@@ -812,21 +868,82 @@ const Dashboard = () => {
         }
     };
 
-    // 12-Month Spending Trend Data (Mocked based on current metrics)
+    // 12-Month Spending Trend Data (Real data based on employees, assets, and subscriptions)
     const monthlySpendingData = useMemo(() => {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const currentDate = new Date();
+        const months = [];
+        const salaryData = [];
+        const assetData = [];
+        const subscriptionData = [];
 
-        // Base values from current metrics
-        const baseSalary = salaryMetrics.totalPayroll;
-        // Use proportional mock values for visualization if real values are too small compared to salary
-        const baseSub = Math.max(subscriptionCostMetrics.totalMonthlyCost, baseSalary * 0.05); // Min 5% of salary
+        // Generate last 12 months
+        for (let i = 11; i >= 0; i--) {
+            const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+            const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+            months.push(monthName);
+
+            const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+
+            // Calculate salary for active employees in this month
+            let monthlySalary = 0;
+            employees.forEach(emp => {
+                const joinDate = new Date(emp.joinDate);
+
+                // Check if employee was working during this month
+                const wasWorkingThisMonth = joinDate <= monthEnd &&
+                    (!emp.lastWorkingDate || new Date(emp.lastWorkingDate) >= monthStart);
+
+                if (wasWorkingThisMonth) {
+                    const salary = parseFloat(String(emp.salary).replace(/,/g, '')) || 0;
+                    monthlySalary += salary;
+                }
+            });
+            salaryData.push(monthlySalary);
+
+            // Calculate assets purchased in this month
+            let monthlyAssetCost = 0;
+            assets.forEach(asset => {
+                if (asset.purchaseDate) {
+                    const purchaseDate = new Date(asset.purchaseDate);
+                    if (purchaseDate >= monthStart && purchaseDate <= monthEnd) {
+                        const assetPrice = parseFloat(String(asset.price || '0').replace(/,/g, ''));
+                        monthlyAssetCost += assetPrice;
+                    }
+                }
+            });
+            assetData.push(monthlyAssetCost);
+
+            // Calculate subscription costs (active subscriptions only)
+            let monthlySubscriptionCost = 0;
+            subscriptions.forEach(sub => {
+                const match = sub.price?.match(/\$([\d,]+\.?\d*)/);
+                if (match) {
+                    const cost = parseFloat(match[1].replace(/,/g, ''));
+
+                    // Check if subscription is active
+                    const isActive = sub.status === 'Active' ||
+                        (Array.isArray(sub.assignedTo) && sub.assignedTo.length > 0 &&
+                            sub.assignedTo.some(a => (typeof a === 'object' && a.status === 'Active') || typeof a === 'string'));
+
+                    // Check if subscription existed during this month
+                    const subStartDate = sub.startDate ? new Date(sub.startDate) : new Date(0);
+                    const wasActiveThisMonth = subStartDate <= monthEnd && isActive;
+
+                    if (wasActiveThisMonth) {
+                        monthlySubscriptionCost += cost;
+                    }
+                }
+            });
+            subscriptionData.push(monthlySubscriptionCost);
+        }
 
         return {
             labels: months,
             datasets: [
                 {
                     label: 'Salaries',
-                    data: months.map(() => baseSalary * (0.95 + Math.random() * 0.1)), // +/- 5% variation
+                    data: salaryData,
                     backgroundColor: '#0d3b2e',
                     borderRadius: 4,
                     barThickness: 20,
@@ -834,15 +951,23 @@ const Dashboard = () => {
                 },
                 {
                     label: 'Subscriptions',
-                    data: months.map(() => baseSub * (0.9 + Math.random() * 0.2)), // +/- 10% variation
+                    data: subscriptionData,
                     backgroundColor: '#fbbf24',
+                    borderRadius: 4,
+                    barThickness: 20,
+                    stack: 'Stack 0',
+                },
+                {
+                    label: 'Assets',
+                    data: assetData,
+                    backgroundColor: '#14b8a6',
                     borderRadius: 4,
                     barThickness: 20,
                     stack: 'Stack 0',
                 }
             ]
         };
-    }, [salaryMetrics, subscriptionCostMetrics]);
+    }, [employees, assets, subscriptions]);
 
     const monthlySpendingOptions = {
         responsive: true,
@@ -858,16 +983,59 @@ const Dashboard = () => {
                     usePointStyle: true,
                     pointStyle: 'circle',
                     padding: 15
+                },
+                onClick: function (e, legendItem, legend) {
+                    const index = legendItem.datasetIndex;
+                    const chart = legend.chart;
+                    const meta = chart.getDatasetMeta(index);
+
+                    // Toggle visibility
+                    meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+                    chart.update();
+
+                    // Update state to track visibility
+                    const datasetLabels = ['salaries', 'subscriptions', 'assets'];
+                    setVisibleDatasets(prev => ({
+                        ...prev,
+                        [datasetLabels[index]]: !meta.hidden
+                    }));
                 }
             },
             tooltip: {
+                mode: 'index',
+                intersect: false,
                 backgroundColor: 'rgba(13, 59, 46, 0.95)',
                 padding: 12,
                 cornerRadius: 8,
                 callbacks: {
+                    title: function (context) {
+                        return context[0].label;
+                    },
                     label: function (context) {
-                        return `${context.dataset.label}: $${(context.parsed.y / 1000).toFixed(1)}K`;
+                        // Get the actual value directly from the dataset
+                        const value = context.dataset.data[context.dataIndex];
+                        return `${context.dataset.label}: $${value.toLocaleString()}`;
+                    },
+                    footer: function (tooltipItems) {
+                        // Only show total if more than one dataset is visible
+                        if (tooltipItems.length <= 1) {
+                            return '';
+                        }
+
+                        let total = 0;
+                        tooltipItems.forEach(item => {
+                            // Get the actual value for this dataset
+                            const datasetIndex = item.datasetIndex;
+                            const dataIndex = item.dataIndex;
+                            const chart = item.chart;
+                            const value = chart.data.datasets[datasetIndex].data[dataIndex];
+                            total += value;
+                        });
+                        return `Total: $${total.toLocaleString()}`;
                     }
+                },
+                footerFont: {
+                    weight: 'bold'
                 }
             }
         },
@@ -1011,13 +1179,12 @@ const Dashboard = () => {
                                     <CreditCard size={24} className="text-white" />
                                 </div>
                                 <div className="d-flex align-items-center gap-1 px-2 py-1 rounded" style={{ background: 'rgba(255, 255, 255, 0.2)' }}>
-                                    <CheckCircle size={14} className="text-white" />
-                                    <span className="small fw-bold text-white">{subscriptionMetrics.active} Active</span>
+                                    <span className="small fw-bold text-white">Monthly</span>
                                 </div>
                             </div>
                             <div>
                                 <h2 className="mb-1 fw-bold text-white">${(subscriptionCostMetrics.totalMonthlyCost || (subscriptionMetrics.total * 50)).toLocaleString()}</h2>
-                                <p className="mb-0 text-white-50 small">SUBSCRIPTION COST</p>
+                                <p className="mb-0 text-white-50 small">SUBSCRIPTIONS + ASSETS</p>
                             </div>
                         </CardBody>
                     </Card>
@@ -1153,7 +1320,13 @@ const Dashboard = () => {
                             <div className="d-flex justify-content-between align-items-center">
                                 <span className="text-muted small">Total Monthly Cost</span>
                                 <span className="h5 mb-0 fw-bold" style={{ color: '#fbbf24' }}>
-                                    ${(salaryMetrics.totalPayroll + subscriptionCostMetrics.totalMonthlyCost).toLocaleString()}
+                                    ${(() => {
+                                        let total = 0;
+                                        if (visibleDatasets.salaries) total += salaryMetrics.totalPayroll;
+                                        if (visibleDatasets.subscriptions) total += subscriptionCostMetrics.subscriptionOnlyCost;
+                                        if (visibleDatasets.assets) total += subscriptionCostMetrics.currentMonthAssetCost;
+                                        return total.toLocaleString();
+                                    })()}
                                 </span>
                             </div>
                         </div>

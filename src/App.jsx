@@ -6,6 +6,7 @@ import EmployeeProfile from './pages/EmployeeProfile';
 import Projects from './pages/Projects';
 import Subscriptions from './pages/Subscriptions';
 import Assets from './pages/Assets';
+import AssetDetail from './pages/AssetDetail';
 import { GlobalProvider } from './contexts/GlobalContext';
 
 // Wrapper component to force Dashboard remount
@@ -26,6 +27,7 @@ function App() {
             <Route path="projects" element={<Projects />} />
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="assets" element={<Assets />} />
+            <Route path="assets/:assetTag" element={<AssetDetail />} />
           </Route>
         </Routes>
       </Router>

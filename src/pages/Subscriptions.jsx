@@ -5,6 +5,7 @@ import {
 } from 'reactstrap';
 import { Plus, CheckCircle, XCircle, Globe, Server, Shield, UserPlus, Check, Search, PlayCircle, PauseCircle, Trash2, Edit, MoreVertical, Briefcase } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
+import DateRangeFilter from '../components/DateRangeFilter';
 
 const AvatarItem = ({ emp, idx }) => {
     const [showTooltip, setShowTooltip] = useState(false);
@@ -77,9 +78,6 @@ const Subscriptions = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editingSubscriptionId, setEditingSubscriptionId] = useState(null);
-    const [assignModalOpen, setAssignModalOpen] = useState(false);
-    const [selectedSubscription, setSelectedSubscription] = useState(null);
-    const [assignedEmployees, setAssignedEmployees] = useState([]);
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [projectSearch, setProjectSearch] = useState('');
     const [confirmDeleteModalOpen, setConfirmDeleteModalOpen] = useState(false);
@@ -89,8 +87,20 @@ const Subscriptions = () => {
         name: '',
         price: '',
         type: 'Software',
-        selectedProjects: []
+        startDate: '',
+        selectedProjects: [],
+        selectedEmployees: []
     });
+
+    // Filter state
+    const [typeFilter, setTypeFilter] = useState('All');
+    const [dateFromFilter, setDateFromFilter] = useState('');
+    const [dateToFilter, setDateToFilter] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Track saved selections for sorting (only updated when modal opens or form is submitted)
+    const [savedSelectedProjects, setSavedSelectedProjects] = useState([]);
+    const [savedSelectedEmployees, setSavedSelectedEmployees] = useState([]);
 
     const getIcon = (type) => {
         switch (type) {
@@ -124,10 +134,18 @@ const Subscriptions = () => {
                 name: '',
                 price: '',
                 type: 'Software',
-                selectedProjects: []
+                startDate: '',
+                selectedProjects: [],
+                selectedEmployees: []
             });
+            setSavedSelectedProjects([]);
+            setSavedSelectedEmployees([]);
             setIsEditMode(false);
             setEditingSubscriptionId(null);
+        } else {
+            // When opening for new subscription, reset saved selections
+            setSavedSelectedProjects([]);
+            setSavedSelectedEmployees([]);
         }
     };
 
@@ -136,12 +154,27 @@ const Subscriptions = () => {
         const match = sub.price.match(/\$([/\d.,]+)\/mo/);
         const numericPrice = match ? match[1].replace(/,/g, '') : '';
 
+        // Extract employee IDs from assignedTo
+        const assignedEmployeeIds = (sub.assignedTo || []).map(assignment =>
+            typeof assignment === 'string' ? assignment : assignment.employeeId
+        );
+
+        const selectedProjects = sub.selectedProjects || [];
+        const selectedEmployees = assignedEmployeeIds;
+
         setFormData({
             name: sub.name,
             price: numericPrice,
             type: sub.type,
-            selectedProjects: sub.selectedProjects || []
+            startDate: sub.startDate || '',
+            selectedProjects: selectedProjects,
+            selectedEmployees: selectedEmployees
         });
+
+        // Set saved selections for sorting
+        setSavedSelectedProjects(selectedProjects);
+        setSavedSelectedEmployees(selectedEmployees);
+
         setIsEditMode(true);
         setEditingSubscriptionId(sub.id);
         setModalOpen(true);
@@ -163,6 +196,10 @@ const Subscriptions = () => {
             if (isNaN(numericPrice) || numericPrice <= 0) {
                 newErrors.price = 'Price must be a positive number';
             }
+        }
+
+        if (!formData.startDate) {
+            newErrors.startDate = 'Start Date is required';
         }
 
         setErrors(newErrors);
@@ -218,9 +255,35 @@ const Subscriptions = () => {
 
         // Remove commas before saving
         const numericPrice = formData.price.replace(/,/g, '');
+
+        // Convert selectedEmployees to assignedTo format
+        const assignedTo = formData.selectedEmployees.map(empId => {
+            // Check if this employee was already assigned (preserve existing data)
+            const existingAssignment = isEditMode
+                ? subscriptions.find(s => s.id === editingSubscriptionId)?.assignedTo?.find(a =>
+                    (typeof a === 'string' ? a : a.employeeId) === empId
+                )
+                : null;
+
+            if (existingAssignment && typeof existingAssignment !== 'string') {
+                return existingAssignment;
+            }
+
+            // Create new assignment
+            return {
+                employeeId: empId,
+                date: new Date().toISOString().split('T')[0],
+                status: 'Active'
+            };
+        });
+
         const submissionData = {
-            ...formData,
-            price: `$${numericPrice}/mo`
+            name: formData.name,
+            price: `$${numericPrice}/mo`,
+            type: formData.type,
+            startDate: formData.startDate,
+            selectedProjects: formData.selectedProjects,
+            assignedTo: assignedTo
         };
 
         if (isEditMode) {
@@ -248,16 +311,20 @@ const Subscriptions = () => {
             typeof item === 'string' ? { employeeId: item, date: new Date().toISOString().split('T')[0] } : item
         );
         // Store only employee IDs for selection logic
-        setAssignedEmployees(normalizedAssignments.map(a => a.employeeId));
+        const employeeIds = normalizedAssignments.map(a => a.employeeId);
+        setAssignedEmployees(employeeIds);
+        setOriginalAssignedEmployees(employeeIds); // Store original for sorting
         setAssignModalOpen(true);
         setEmployeeSearch('');
     };
+
 
     const toggleAssignModal = () => {
         setAssignModalOpen(!assignModalOpen);
         if (assignModalOpen) {
             setSelectedSubscription(null);
             setAssignedEmployees([]);
+            setOriginalAssignedEmployees([]);
         }
     };
 
@@ -350,8 +417,122 @@ const Subscriptions = () => {
                 </Button>
             </div>
 
+
+            {/* Filter */}
+            <div className="mb-4 d-flex gap-3 align-items-center flex-wrap">
+                <div style={{ minWidth: '350px', maxWidth: '450px' }}>
+                    <Label className="fw-medium mb-2">Search Subscriptions</Label>
+                    <div className="position-relative">
+                        <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
+                        <Input
+                            placeholder="Search by subscription name..."
+                            className="ps-5"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0'
+                            }}
+                        />
+                    </div>
+                </div>
+                <div style={{ minWidth: '200px' }}>
+                    <Label className="fw-medium mb-2">Filter by Type</Label>
+                    <UncontrolledDropdown>
+                        <DropdownToggle
+                            caret
+                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                            style={{
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                backgroundColor: 'white',
+                                padding: '0.375rem 0.75rem',
+                                color: '#6c757d'
+                            }}
+                        >
+                            {typeFilter === 'All' ? 'All Types' : typeFilter}
+                        </DropdownToggle>
+                        <DropdownMenu className="w-100">
+                            <DropdownItem onClick={() => setTypeFilter('All')}>All Types</DropdownItem>
+                            <DropdownItem onClick={() => setTypeFilter('Software')}>Software</DropdownItem>
+                            <DropdownItem onClick={() => setTypeFilter('Infrastructure')}>Infrastructure</DropdownItem>
+                            <DropdownItem onClick={() => setTypeFilter('Security')}>Security</DropdownItem>
+                            <DropdownItem onClick={() => setTypeFilter('Services')}>Services</DropdownItem>
+                        </DropdownMenu>
+                    </UncontrolledDropdown>
+                </div>
+                <div style={{ minWidth: '300px' }}>
+                    <Label className="fw-medium mb-2">Filter by Start Date</Label>
+                    <DateRangeFilter
+                        startDate={dateFromFilter}
+                        endDate={dateToFilter}
+                        bgColor="bg-white"
+                        showBorder={true}
+                        onChange={(start, end) => {
+                            const formatDate = (date) => {
+                                if (!date) return '';
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const day = String(date.getDate()).padStart(2, '0');
+                                return `${year}-${month}-${day}`;
+                            };
+                            setDateFromFilter(formatDate(start));
+                            setDateToFilter(formatDate(end));
+                        }}
+                    />
+                </div>
+                {(typeFilter !== 'All' || dateFromFilter || dateToFilter || searchQuery !== '') && (
+                    <Button
+                        color="light"
+                        size="sm"
+                        onClick={() => {
+                            setTypeFilter('All');
+                            setDateFromFilter('');
+                            setDateToFilter('');
+                            setSearchQuery('');
+                        }}
+                        style={{ marginTop: '28px' }}
+                    >
+                        Clear Filters
+                    </Button>
+                )}
+            </div>
+
             <Row className="g-4">
-                {subscriptions.map((sub) => {
+                {subscriptions.filter(sub => {
+                    // Filter by search query
+                    if (searchQuery !== '') {
+                        const query = searchQuery.toLowerCase();
+                        const nameMatch = sub.name.toLowerCase().includes(query);
+                        if (!nameMatch) {
+                            return false;
+                        }
+                    }
+
+                    // Filter by type
+                    if (typeFilter !== 'All' && sub.type !== typeFilter) {
+                        return false;
+                    }
+
+                    // Filter by start date range
+                    if ((dateFromFilter || dateToFilter) && sub.startDate) {
+                        const subDate = new Date(sub.startDate);
+                        if (dateFromFilter) {
+                            const fromDate = new Date(dateFromFilter);
+                            if (subDate < fromDate) {
+                                return false;
+                            }
+                        }
+                        if (dateToFilter) {
+                            const toDate = new Date(dateToFilter);
+                            if (subDate > toDate) {
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
+                }).map((sub) => {
                     const Icon = getIcon(sub.type);
 
                     // Type-based styling - Bold gradients matching Dashboard style
@@ -683,7 +864,7 @@ const Subscriptions = () => {
                                                     transition: 'all 0.2s ease'
                                                 }}
                                                 size="sm"
-                                                onClick={() => openAssignModal(sub)}
+                                                onClick={() => handleEditClick(sub)}
                                                 title="Manage Users"
                                                 onMouseEnter={(e) => {
                                                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
@@ -741,85 +922,213 @@ const Subscriptions = () => {
                         </FormGroup>
                         <FormGroup>
                             <Label for="type">Type</Label>
-                            <Input
-                                id="type"
-                                name="type"
-                                type="select"
-                                value={formData.type}
-                                onChange={handleChange}
-                            >
-                                <option value="Software">Software</option>
-                                <option value="Infrastructure">Infrastructure</option>
-                                <option value="Security">Security</option>
-                                <option value="Services">Services</option>
-                            </Input>
+                            <UncontrolledDropdown>
+                                <DropdownToggle
+                                    caret
+                                    className="w-100 text-start d-flex justify-content-between align-items-center"
+                                    style={{
+                                        borderRadius: '8px',
+                                        border: '1px solid #ced4da',
+                                        backgroundColor: 'white',
+                                        padding: '0.375rem 0.75rem',
+                                        color: '#495057',
+                                        fontSize: '1rem'
+                                    }}
+                                >
+                                    {formData.type}
+                                </DropdownToggle>
+                                <DropdownMenu className="w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                    <DropdownItem
+                                        onClick={() => setFormData(prev => ({ ...prev, type: 'Software' }))}
+                                    >
+                                        Software
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        onClick={() => setFormData(prev => ({ ...prev, type: 'Infrastructure' }))}
+                                    >
+                                        Infrastructure
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        onClick={() => setFormData(prev => ({ ...prev, type: 'Security' }))}
+                                    >
+                                        Security
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        onClick={() => setFormData(prev => ({ ...prev, type: 'Services' }))}
+                                    >
+                                        Services
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </UncontrolledDropdown>
                         </FormGroup>
                         <FormGroup>
-                            <Label className="fw-medium">Active Projects</Label>
-                            <div className="position-relative mb-2">
-                                <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
-                                <Input
-                                    placeholder="Search projects..."
-                                    className="ps-5"
-                                    value={projectSearch}
-                                    onChange={(e) => setProjectSearch(e.target.value)}
-                                />
-                            </div>
-                            <div className="border rounded bg-white p-2" style={{ height: '150px', overflowY: 'auto' }}>
-                                {projects
-                                    .filter(p => !['On Hold', 'Completed', 'Removed'].includes(p.status))
-                                    .filter(p =>
-                                        p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
-                                        p.status.toLowerCase().includes(projectSearch.toLowerCase())
-                                    )
-                                    .length > 0 ? (
-                                    projects
-                                        .filter(p => !['On Hold', 'Completed', 'Removed'].includes(p.status))
-                                        .filter(p =>
-                                            p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
-                                            p.status.toLowerCase().includes(projectSearch.toLowerCase())
-                                        )
-                                        .map(project => {
-                                            const isSelected = formData.selectedProjects.includes(project.id);
-                                            return (
-                                                <div
-                                                    key={project.id}
-                                                    className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
-                                                    onClick={() => {
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            selectedProjects: isSelected
-                                                                ? prev.selectedProjects.filter(id => id !== project.id)
-                                                                : [...prev.selectedProjects, project.id]
-                                                        }));
-                                                    }}
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={() => { }}
-                                                        className="me-3"
-                                                    />
-                                                    <div>
-                                                        <div className="fw-medium text-dark">{project.title}</div>
-                                                        <small className="text-muted">{project.status}</small>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                ) : (
-                                    <div className="text-center text-muted py-4">
-                                        <small>No active projects available</small>
-                                    </div>
-                                )}
-                            </div>
-                            <small className="text-muted mt-1 d-block">
-                                Select projects that use this subscription. Selected: {formData.selectedProjects.length}
-                            </small>
+                            <Label for="startDate">Start Date</Label>
+                            <Input
+                                id="startDate"
+                                name="startDate"
+                                type="date"
+                                value={formData.startDate}
+                                onChange={handleChange}
+                                invalid={!!errors.startDate}
+                            />
+                            {errors.startDate && <div className="invalid-feedback d-block">{errors.startDate}</div>}
                         </FormGroup>
+                        <Row>
+                            <Col md={6}>
+                                <FormGroup>
+                                    <Label className="fw-medium">Active Projects</Label>
+                                    <div className="position-relative mb-2">
+                                        <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
+                                        <Input
+                                            placeholder="Search projects..."
+                                            className="ps-5"
+                                            value={projectSearch}
+                                            onChange={(e) => setProjectSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="border rounded bg-white p-2" style={{ height: '200px', overflowY: 'auto' }}>
+                                        {projects
+                                            .filter(p => !['On Hold', 'Completed', 'Removed'].includes(p.status))
+                                            .filter(p =>
+                                                p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                p.status.toLowerCase().includes(projectSearch.toLowerCase())
+                                            )
+                                            .length > 0 ? (
+                                            projects
+                                                .filter(p => !['On Hold', 'Completed', 'Removed'].includes(p.status))
+                                                .filter(p =>
+                                                    p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
+                                                    p.status.toLowerCase().includes(projectSearch.toLowerCase())
+                                                )
+                                                .sort((a, b) => {
+                                                    const aSelected = savedSelectedProjects.includes(a.id);
+                                                    const bSelected = savedSelectedProjects.includes(b.id);
+                                                    if (aSelected && !bSelected) return -1;
+                                                    if (!aSelected && bSelected) return 1;
+                                                    return 0;
+                                                })
+                                                .map(project => {
+                                                    const isSelected = formData.selectedProjects.includes(project.id);
+                                                    return (
+                                                        <div
+                                                            key={project.id}
+                                                            className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
+                                                            onClick={() => {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    selectedProjects: isSelected
+                                                                        ? prev.selectedProjects.filter(id => id !== project.id)
+                                                                        : [...prev.selectedProjects, project.id]
+                                                                }));
+                                                            }}
+                                                            style={{ cursor: 'pointer' }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => { }}
+                                                                className="me-3"
+                                                            />
+                                                            <div>
+                                                                <div className="fw-medium text-dark">{project.title}</div>
+                                                                <small className="text-muted">{project.status}</small>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                        ) : (
+                                            <div className="text-center text-muted py-4">
+                                                <small>No active projects available</small>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <small className="text-muted mt-1 d-block">
+                                        Select projects that use this subscription.
+                                        <br />
+                                        Selected: {formData.selectedProjects.length}
+                                    </small>
+                                </FormGroup>
+                            </Col>
+                            <Col md={6}>
+                                <FormGroup>
+                                    <Label className="fw-medium">Assign to Employees</Label>
+                                    <div className="position-relative mb-2">
+                                        <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
+                                        <Input
+                                            placeholder="Search employees..."
+                                            className="ps-5"
+                                            value={employeeSearch}
+                                            onChange={(e) => setEmployeeSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="border rounded bg-white p-2" style={{ height: '200px', overflowY: 'auto' }}>
+                                        {employees
+                                            .filter(emp => emp.status === 'Active') // Only show active employees
+                                            .filter(emp =>
+                                                emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                emp.role.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                emp.department.toLowerCase().includes(employeeSearch.toLowerCase())
+                                            )
+                                            .length > 0 ? (
+                                            employees
+                                                .filter(emp => emp.status === 'Active')
+                                                .filter(emp =>
+                                                    emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                    emp.role.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                    emp.department.toLowerCase().includes(employeeSearch.toLowerCase())
+                                                )
+                                                .sort((a, b) => {
+                                                    const aSelected = savedSelectedEmployees.includes(a.id.toString());
+                                                    const bSelected = savedSelectedEmployees.includes(b.id.toString());
+                                                    if (aSelected && !bSelected) return -1;
+                                                    if (!aSelected && bSelected) return 1;
+                                                    return 0;
+                                                })
+                                                .map(employee => {
+                                                    const isSelected = formData.selectedEmployees.includes(employee.id.toString());
+                                                    return (
+                                                        <div
+                                                            key={employee.id}
+                                                            className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
+                                                            onClick={() => {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    selectedEmployees: isSelected
+                                                                        ? prev.selectedEmployees.filter(id => id !== employee.id.toString())
+                                                                        : [...prev.selectedEmployees, employee.id.toString()]
+                                                                }));
+                                                            }}
+                                                            style={{ cursor: 'pointer' }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => { }}
+                                                                className="me-3"
+                                                            />
+                                                            <div>
+                                                                <div className="fw-medium text-dark">{employee.name}</div>
+                                                                <small className="text-muted">{employee.role} • {employee.department}</small>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                        ) : (
+                                            <div className="text-center text-muted py-4">
+                                                <small>No active employees available</small>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <small className="text-muted mt-1 d-block">
+                                        Select employees who will use this subscription.
+                                        <br />
+                                        Selected: {formData.selectedEmployees.length}
+                                    </small>
+                                </FormGroup>
+                            </Col>
+                        </Row>
                     </ModalBody>
-                    <ModalFooter>
+                    <ModalFooter style={{ borderTop: 'none' }}>
                         <Button color="light" className="border" onClick={toggleModal}>
                             Cancel
                         </Button>
@@ -838,77 +1147,6 @@ const Subscriptions = () => {
                 </Form>
             </Modal >
 
-            {/* Assign Employees Modal */}
-            < Modal isOpen={assignModalOpen} toggle={toggleAssignModal} >
-                <ModalHeader toggle={toggleAssignModal}>
-                    Assign to {selectedSubscription?.name}
-                </ModalHeader>
-                <ModalBody>
-                    <div className="position-relative mb-3">
-                        <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
-                        <Input
-                            placeholder="Search employees..."
-                            className="ps-5"
-                            value={employeeSearch}
-                            onChange={(e) => setEmployeeSearch(e.target.value)}
-                        />
-                    </div>
-                    <div
-                        className="border rounded bg-white p-2"
-                        style={{ height: '300px', overflowY: 'auto' }}
-                    >
-                        {filteredEmployees.length > 0 ? (
-                            filteredEmployees.map(emp => {
-                                const isSelected = assignedEmployees.some(a => a === emp.id.toString());
-                                return (
-                                    <div
-                                        key={emp.id}
-                                        className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
-                                        onClick={() => toggleEmployeeAssignment(emp.id.toString())}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div
-                                            className={`d-flex align-items-center justify-content-center rounded border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
-                                            style={{ width: '20px', height: '20px', minWidth: '20px' }}
-                                        >
-                                            {isSelected && <Check size={14} className="text-white" />}
-                                        </div>
-                                        <div>
-                                            <div className="fw-medium text-dark">{emp.name}</div>
-                                            <small className="text-muted">{emp.role}</small>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <div className="text-center text-muted py-4">
-                                <small>No matching employees found.</small>
-                            </div>
-                        )}
-                    </div>
-                    <div className="d-flex justify-content-between align-items-center mt-2">
-                        <small className="text-muted">
-                            {assignedEmployees.length} employees selected
-                        </small>
-                    </div>
-                </ModalBody>
-                <ModalFooter>
-                    <Button color="light" className="border" onClick={toggleAssignModal}>
-                        Cancel
-                    </Button>
-                    <Button
-                        onClick={handleAssignSubmit}
-                        style={{
-                            background: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
-                            border: 'none',
-                            color: 'white',
-                            fontWeight: '500'
-                        }}
-                    >
-                        Save Assignments
-                    </Button>
-                </ModalFooter>
-            </Modal >
             {/* Delete Confirmation Modal */}
             < Modal isOpen={confirmDeleteModalOpen} toggle={() => setConfirmDeleteModalOpen(false)}>
                 <ModalHeader toggle={() => setConfirmDeleteModalOpen(false)}>Confirm Delete</ModalHeader>

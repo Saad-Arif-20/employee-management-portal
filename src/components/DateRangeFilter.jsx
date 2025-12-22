@@ -6,7 +6,7 @@ import { Button } from 'reactstrap';
 import 'react-date-range/dist/styles.css'; // main style file
 import 'react-date-range/dist/theme/default.css'; // theme css file
 
-const DateRangeFilter = ({ startDate, endDate, onChange }) => {
+const DateRangeFilter = ({ startDate, endDate, onChange, bgColor = 'bg-light', showBorder = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [range, setRange] = useState([
         {
@@ -73,9 +73,9 @@ const DateRangeFilter = ({ startDate, endDate, onChange }) => {
     return (
         <div className="position-relative" ref={wrapperRef}>
             <div
-                className="d-flex align-items-center border border-light rounded bg-light px-3 py-1 cursor-pointer"
+                className={`d-flex align-items-center ${showBorder ? 'border' : ''} rounded ${bgColor} px-3 py-1 cursor-pointer`}
                 onClick={() => setIsOpen(!isOpen)}
-                style={{ cursor: 'pointer', minWidth: '200px', height: '38px' }}
+                style={{ cursor: 'pointer', minWidth: '200px', height: '38px', borderColor: showBorder ? '#e2e8f0' : undefined }}
             >
                 <Calendar size={18} className="text-muted me-2" />
                 <span className={`flex-grow-1 ${!startDate ? 'text-muted' : 'text-dark fw-medium'}`}>

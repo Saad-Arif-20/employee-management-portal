@@ -3,9 +3,12 @@ import {
     Card, CardBody, Badge, Button, Table,
     Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input,
     ButtonGroup, Row, Col, UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem,
-    Pagination, PaginationItem, PaginationLink
+    Pagination, PaginationItem, PaginationLink, InputGroup, InputGroupText
 } from 'reactstrap';
-import { Plus, Monitor, Smartphone, HardDrive, User, Save, X, Edit, Trash2, Layers, Tag, Search, MoreVertical, ChevronDown } from 'lucide-react';
+import { Plus, Monitor, Smartphone, HardDrive, User, Save, X, Edit, Trash2, Layers, Tag, Search, MoreVertical, ChevronDown, Printer, Download, Laptop, Keyboard } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { useGlobal } from '../contexts/GlobalContext';
 
 const Assets = () => {
@@ -22,7 +25,8 @@ const Assets = () => {
         serial: '',
         assignedTo: '',
         status: 'Available',
-        quantity: 1
+        quantity: 1,
+        price: ''
     });
 
     // Delete Confirmation Modal
@@ -38,6 +42,14 @@ const Assets = () => {
 
     // Tooltip State
     const [hoveredEmployee, setHoveredEmployee] = useState(null);
+
+    // Employee Search State
+    const [employeeSearch, setEmployeeSearch] = useState('');
+
+    // Barcode Generation State
+    const [selectedAssets, setSelectedAssets] = useState([]);
+    const [showBarcodeView, setShowBarcodeView] = useState(false);
+    const [showSelectionMode, setShowSelectionMode] = useState(false);
 
     // Reset page when filters change
     React.useEffect(() => {
@@ -69,12 +81,16 @@ const Assets = () => {
 
     const getIcon = (type) => {
         switch (type) {
+            case 'Laptop': return Laptop;
             case 'Mobile': return Smartphone;
             case 'Storage': return HardDrive;
+            case 'Peripheral':
+            case 'Peripheral (Keyboard, Mouse, etc.)': return Layers;
             case 'Chair':
             case 'Desk':
             case 'Furniture':
             case 'Furniture (Chair, Desk, etc.)': return Layers;
+            case 'Other': return Layers;
             default: return Monitor;
         }
     };
@@ -83,6 +99,17 @@ const Assets = () => {
     const getEmployeeDetails = (employeeName) => {
         if (!employeeName) return null;
         return employees.find(emp => emp.name === employeeName);
+    };
+
+    // Helper function to format price with commas
+    const formatPrice = (price) => {
+        if (!price) return '$0.00';
+        const numPrice = parseFloat(price);
+        if (isNaN(numPrice)) return '$0.00';
+        return '$' + numPrice.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
     };
 
     const [errors, setErrors] = useState({});
@@ -100,7 +127,9 @@ const Assets = () => {
                 serial: '',
                 assignedTo: '',
                 status: 'Available',
-                quantity: 1
+                quantity: 1,
+                price: '',
+                purchaseDate: ''
             });
             setIsEditMode(false);
             setEditingAssetId(null);
@@ -116,7 +145,9 @@ const Assets = () => {
             serial: asset.serial || '',
             assignedTo: asset.assignedTo || '',
             status: asset.status,
-            quantity: 1
+            quantity: 1,
+            price: asset.price || '',
+            purchaseDate: asset.purchaseDate || ''
         });
         setIsEditMode(true);
         setEditingAssetId(asset.id);
@@ -139,7 +170,14 @@ const Assets = () => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => {
-            const updates = { ...prev, [name]: name === 'quantity' ? parseInt(value) || 1 : value };
+            let updates = { ...prev, [name]: name === 'quantity' ? parseInt(value) || 1 : value };
+
+            // Handle price formatting - only allow whole numbers (no decimals)
+            if (name === 'price') {
+                // Remove all non-numeric characters (including decimal points)
+                const numericValue = value.replace(/[^0-9]/g, '');
+                updates.price = numericValue;
+            }
 
             if (name === 'assignedTo') {
                 updates.status = value ? 'Assigned' : 'Available';
@@ -170,60 +208,17 @@ const Assets = () => {
             newErrors.name = 'Asset Name must contain at least one letter';
         }
 
-        // Asset Tag validation
-        if (!formData.assetTag) {
-            newErrors.assetTag = 'Asset Tag is required';
-        } else if (!/^[a-zA-Z]+-\d+$/.test(formData.assetTag)) {
-            newErrors.assetTag = 'Asset Tag must follow format: LETTER(S)-NUMBER(S) (e.g., AST-001, LP-123)';
+        // Purchase Date validation
+        if (!formData.purchaseDate) {
+            newErrors.purchaseDate = 'Purchase Date is required';
+        }
+
+        // Price validation
+        if (!formData.price || formData.price === '' || formData.price === '0') {
+            newErrors.price = 'Price is required and must be greater than 0';
         }
 
         if (!isEditMode && formData.quantity < 1) newErrors.quantity = 'Quantity must be at least 1';
-
-        // Check for duplicate Asset Tag
-        if (isEditMode) {
-            const duplicateTag = assets.find(a =>
-                a.assetTag && a.assetTag.toLowerCase() === formData.assetTag.toLowerCase() &&
-                a.id !== editingAssetId
-            );
-            if (duplicateTag) newErrors.assetTag = 'Asset Tag already exists';
-        } else {
-            // Create mode
-            const quantity = parseInt(formData.quantity) || 1;
-
-            if (quantity === 1) {
-                const duplicateTag = assets.find(a =>
-                    a.assetTag && a.assetTag.toLowerCase() === formData.assetTag.toLowerCase()
-                );
-                if (duplicateTag) newErrors.assetTag = 'Asset Tag already exists';
-            } else {
-                // Check all generated tags for bulk creation
-                const baseTag = formData.assetTag;
-                const match = baseTag.match(/^(.*?)(\d+)$/);
-
-                for (let i = 0; i < quantity; i++) {
-                    let tagToCheck;
-                    if (match) {
-                        const prefix = match[1];
-                        const numberStr = match[2];
-                        const startNumber = parseInt(numberStr, 10);
-                        const padding = numberStr.length;
-                        const currentNumber = startNumber + i;
-                        tagToCheck = `${prefix}${String(currentNumber).padStart(padding, '0')}`;
-                    } else {
-                        tagToCheck = i === 0 ? baseTag : `${baseTag}-${i + 1}`;
-                    }
-
-                    const duplicateTag = assets.find(a =>
-                        a.assetTag && a.assetTag.toLowerCase() === tagToCheck.toLowerCase()
-                    );
-
-                    if (duplicateTag) {
-                        newErrors.assetTag = `Asset Tag '${tagToCheck}' already exists`;
-                        break;
-                    }
-                }
-            }
-        }
 
         // Serial Number validation - now optional
         if (formData.serial) {
@@ -240,41 +235,58 @@ const Assets = () => {
         return Object.keys(newErrors).length === 0;
     };
 
+    // Function to generate a unique 6-digit asset tag
+    const generateUniqueAssetTag = (existingTags = []) => {
+        let tag;
+        let attempts = 0;
+        const maxAttempts = 1000;
+
+        do {
+            // Generate a random 6-digit number (000000 to 999999)
+            const randomNumber = Math.floor(Math.random() * 1000000);
+            tag = String(randomNumber).padStart(6, '0');
+            attempts++;
+
+            if (attempts >= maxAttempts) {
+                // Fallback: use timestamp-based tag if we can't find a unique random one
+                tag = Date.now().toString().slice(-6);
+                break;
+            }
+        } while (existingTags.includes(tag));
+
+        return tag;
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
 
         if (validate()) {
             if (isEditMode) {
-                // Edit mode - update single asset
+                // Edit mode - update single asset (keep existing assetTag)
                 const { quantity, ...assetData } = formData;
                 updateAsset(editingAssetId, assetData);
             } else {
-                // Create mode - handle quantity
+                // Create mode - handle quantity with auto-generated tags
                 const quantity = parseInt(formData.quantity);
+                const existingTags = assets.map(a => a.assetTag);
+
                 if (quantity === 1) {
                     // Single asset
-                    const { quantity, ...assetData } = formData;
-                    addAsset(assetData);
+                    const { quantity, assetTag, ...assetData } = formData;
+                    const newTag = generateUniqueAssetTag(existingTags);
+                    addAsset({
+                        ...assetData,
+                        assetTag: newTag
+                    });
                 } else {
                     // Multiple assets
                     const newAssets = [];
-                    const baseTag = formData.assetTag;
-                    const match = baseTag.match(/^(.*?)(\d+)$/);
+                    const usedTags = [...existingTags];
 
                     for (let i = 0; i < quantity; i++) {
-                        const { quantity, ...assetData } = formData;
-
-                        let newTag;
-                        if (match) {
-                            const prefix = match[1];
-                            const numberStr = match[2];
-                            const startNumber = parseInt(numberStr, 10);
-                            const padding = numberStr.length;
-                            const currentNumber = startNumber + i;
-                            newTag = `${prefix}${String(currentNumber).padStart(padding, '0')}`;
-                        } else {
-                            newTag = i === 0 ? baseTag : `${baseTag}-${i + 1}`;
-                        }
+                        const { quantity, assetTag, ...assetData } = formData;
+                        const newTag = generateUniqueAssetTag(usedTags);
+                        usedTags.push(newTag);
 
                         newAssets.push({
                             ...assetData,
@@ -290,6 +302,93 @@ const Assets = () => {
         }
     };
 
+    // Handle selecting/deselecting assets for barcode generation
+    const toggleAssetSelection = (assetId) => {
+        setSelectedAssets(prev =>
+            prev.includes(assetId)
+                ? prev.filter(id => id !== assetId)
+                : [...prev, assetId]
+        );
+    };
+
+    // Handle select all/deselect all
+    const toggleSelectAll = () => {
+        const currentAssetIds = currentAssets.map(asset => asset.id);
+        const allCurrentSelected = currentAssetIds.every(id => selectedAssets.includes(id));
+
+        if (allCurrentSelected) {
+            // Deselect all current page assets
+            setSelectedAssets(prev => prev.filter(id => !currentAssetIds.includes(id)));
+        } else {
+            // Select all current page assets
+            const newSelections = [...new Set([...selectedAssets, ...currentAssetIds])];
+            setSelectedAssets(newSelections);
+        }
+    };
+
+    // Handle barcode generation
+    const handleGenerateBarcodes = () => {
+        if (selectedAssets.length > 0) {
+            setShowBarcodeView(true);
+        }
+    };
+
+    // Handle print
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const handleDownloadPDF = async () => {
+        const element = document.querySelector('[data-pdf-content]');
+        if (!element) return;
+
+        try {
+            // Capture the element as canvas
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // Calculate PDF dimensions
+            const imgWidth = 210; // A4 width in mm
+            const pageHeight = 297; // A4 height in mm
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            // Create PDF
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgData = canvas.toDataURL('image/png');
+
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            // Add first page
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            // Add additional pages if content is longer than one page
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            // Save the PDF
+            const filename = `QR-Code-Labels-${new Date().toISOString().split('T')[0]}.pdf`;
+            pdf.save(filename);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            alert('Failed to generate PDF. Please try again.');
+        }
+    };
+
+    // Get selected asset objects
+    const getSelectedAssetObjects = () => {
+        return assets.filter(asset => selectedAssets.includes(asset.id));
+    };
+
     return (
         <div className="container-fluid py-4">
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -297,18 +396,66 @@ const Assets = () => {
                     <h2 className="fw-bold text-dark">Assets & Hardware</h2>
                     <p className="text-muted">Track company assets, hardware, and furniture.</p>
                 </div>
-                <Button
-                    className="d-flex align-items-center gap-2 shadow-sm"
-                    onClick={toggleModal}
-                    style={{
-                        background: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
-                        border: 'none',
-                        color: 'white'
-                    }}
-                >
-                    <Plus size={18} />
-                    <span>Enroll Asset</span>
-                </Button>
+                <div className="d-flex gap-2">
+                    {!showSelectionMode ? (
+                        <>
+                            <Button
+                                className="d-flex align-items-center gap-2 shadow-sm"
+                                onClick={() => setShowSelectionMode(true)}
+                                style={{
+                                    background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                                    border: 'none',
+                                    color: 'white'
+                                }}
+                            >
+                                <Printer size={18} />
+                                <span>Select for Barcodes</span>
+                            </Button>
+                            <Button
+                                className="d-flex align-items-center gap-2 shadow-sm"
+                                onClick={toggleModal}
+                                style={{
+                                    background: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
+                                    border: 'none',
+                                    color: 'white'
+                                }}
+                            >
+                                <Plus size={18} />
+                                <span>Enroll Asset</span>
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button
+                                className="d-flex align-items-center gap-2 shadow-sm"
+                                onClick={handleGenerateBarcodes}
+                                disabled={selectedAssets.length === 0}
+                                style={{
+                                    background: selectedAssets.length > 0
+                                        ? 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)'
+                                        : '#e5e7eb',
+                                    border: 'none',
+                                    color: selectedAssets.length > 0 ? 'white' : '#9ca3af',
+                                    cursor: selectedAssets.length > 0 ? 'pointer' : 'not-allowed'
+                                }}
+                            >
+                                <Printer size={18} />
+                                <span>Generate Barcodes {selectedAssets.length > 0 && `(${selectedAssets.length})`}</span>
+                            </Button>
+                            <Button
+                                color="light"
+                                className="border d-flex align-items-center gap-2"
+                                onClick={() => {
+                                    setShowSelectionMode(false);
+                                    setSelectedAssets([]);
+                                }}
+                            >
+                                <X size={18} />
+                                <span>Cancel</span>
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
 
             <Card className="glass-card border-0">
@@ -329,38 +476,52 @@ const Assets = () => {
                             </div>
                         </Col>
                         <Col md={3}>
-                            <Label htmlFor="type-filter" className="fw-medium text-muted">Filter by Type</Label>
-                            <Input
-                                id="type-filter"
-                                type="select"
-                                className="border-0 bg-light"
-                                value={typeFilter}
-                                onChange={(e) => setTypeFilter(e.target.value)}
-                            >
-                                <option value="">All Types</option>
-                                <option value="Laptop">Laptop</option>
-                                <option value="Mobile">Mobile</option>
-                                <option value="Storage">Storage</option>
-                                <option value="Peripheral (Keyboard, Mouse, etc.)">Peripheral</option>
-                                <option value="Furniture (Chair, Desk, etc.)">Furniture</option>
-                                <option value="Other">Other</option>
-                            </Input>
+                            <Label className="fw-medium text-muted">Filter by Type</Label>
+                            <UncontrolledDropdown>
+                                <DropdownToggle
+                                    caret
+                                    className="w-100 text-start d-flex justify-content-between align-items-center border-0 bg-light"
+                                    style={{
+                                        borderRadius: '0.375rem',
+                                        padding: '0.375rem 0.75rem',
+                                        color: '#6c757d'
+                                    }}
+                                >
+                                    {typeFilter || 'All Types'}
+                                </DropdownToggle>
+                                <DropdownMenu className="w-100">
+                                    <DropdownItem onClick={() => setTypeFilter('')}>All Types</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Laptop')}>Laptop</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Mobile')}>Mobile</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Storage')}>Storage</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Peripheral (Keyboard, Mouse, etc.)')}>Peripheral</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Furniture (Chair, Desk, etc.)')}>Furniture</DropdownItem>
+                                    <DropdownItem onClick={() => setTypeFilter('Other')}>Other</DropdownItem>
+                                </DropdownMenu>
+                            </UncontrolledDropdown>
                         </Col>
                         <Col md={3}>
-                            <Label htmlFor="status-filter" className="fw-medium text-muted">Filter by Status</Label>
-                            <Input
-                                id="status-filter"
-                                type="select"
-                                className="border-0 bg-light"
-                                value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
-                            >
-                                <option value="">All Status</option>
-                                <option value="Available">Available</option>
-                                <option value="Assigned">Assigned</option>
-                                <option value="Under maintenance">Under maintenance</option>
-                                <option value="Discarded">Discarded</option>
-                            </Input>
+                            <Label className="fw-medium text-muted">Filter by Status</Label>
+                            <UncontrolledDropdown>
+                                <DropdownToggle
+                                    caret
+                                    className="w-100 text-start d-flex justify-content-between align-items-center border-0 bg-light"
+                                    style={{
+                                        borderRadius: '0.375rem',
+                                        padding: '0.375rem 0.75rem',
+                                        color: '#6c757d'
+                                    }}
+                                >
+                                    {statusFilter || 'All Status'}
+                                </DropdownToggle>
+                                <DropdownMenu className="w-100">
+                                    <DropdownItem onClick={() => setStatusFilter('')}>All Status</DropdownItem>
+                                    <DropdownItem onClick={() => setStatusFilter('Available')}>Available</DropdownItem>
+                                    <DropdownItem onClick={() => setStatusFilter('Assigned')}>Assigned</DropdownItem>
+                                    <DropdownItem onClick={() => setStatusFilter('Under maintenance')}>Under maintenance</DropdownItem>
+                                    <DropdownItem onClick={() => setStatusFilter('Discarded')}>Discarded</DropdownItem>
+                                </DropdownMenu>
+                            </UncontrolledDropdown>
                         </Col>
                     </Row>
 
@@ -368,14 +529,24 @@ const Assets = () => {
                         <Table hover className="align-middle">
                             <thead className="bg-light">
                                 <tr>
-                                    <th className="border-0 text-muted fw-medium px-4">Asset Name</th>
-                                    <th className="border-0 text-muted fw-medium px-4">Type</th>
-                                    <th className="border-0 text-muted fw-medium px-4">Asset Tag</th>
-                                    <th className="border-0 text-muted fw-medium px-4">Model (Optional)</th>
-                                    <th className="border-0 text-muted fw-medium px-4">Serial (Optional)</th>
-                                    <th className="border-0 text-muted fw-medium px-4">Assigned To</th>
-                                    <th className="border-0 text-muted fw-medium text-center px-4">Status</th>
-                                    <th className="border-0 text-muted fw-medium text-center px-4">Actions</th>
+                                    {showSelectionMode && (
+                                        <th className="border-0 px-4" style={{ width: '50px' }}>
+                                            <Input
+                                                type="checkbox"
+                                                checked={currentAssets.length > 0 && currentAssets.every(asset => selectedAssets.includes(asset.id))}
+                                                onChange={toggleSelectAll}
+                                                style={{ cursor: 'pointer' }}
+                                            />
+                                        </th>
+                                    )}
+                                    <th className="border-0 fw-medium px-4" style={{ color: '#0d3b2e' }}>Asset Tag</th>
+                                    <th className="border-0 fw-medium px-4" style={{ color: '#0d3b2e' }}>Asset Name</th>
+                                    <th className="border-0 fw-medium px-4" style={{ color: '#0d3b2e' }}>Type</th>
+                                    <th className="border-0 fw-medium text-end px-4" style={{ color: '#0d3b2e', whiteSpace: 'nowrap' }}>Price (USD)</th>
+                                    <th className="border-0 fw-medium px-4" style={{ color: '#0d3b2e' }}>Model (Optional)</th>
+                                    <th className="border-0 fw-medium px-4" style={{ color: '#0d3b2e' }}>Assigned To</th>
+                                    <th className="border-0 fw-medium text-center px-4" style={{ color: '#0d3b2e' }}>Status</th>
+                                    <th className="border-0 fw-medium text-center px-4" style={{ color: '#0d3b2e' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -384,6 +555,23 @@ const Assets = () => {
                                         const Icon = getIcon(asset.type);
                                         return (
                                             <tr key={asset.id}>
+                                                {showSelectionMode && (
+                                                    <td className="border-bottom border-light py-3 px-4">
+                                                        <Input
+                                                            type="checkbox"
+                                                            checked={selectedAssets.includes(asset.id)}
+                                                            onChange={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleAssetSelection(asset.id);
+                                                            }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            style={{ cursor: 'pointer' }}
+                                                        />
+                                                    </td>
+                                                )}
+                                                <td className="border-bottom border-light py-3 px-4">
+                                                    <span className="text-dark">{asset.assetTag || 'N/A'}</span>
+                                                </td>
                                                 <td className="border-bottom border-light py-3 px-4">
                                                     <div className="d-flex align-items-center gap-3">
                                                         <div className="p-2 rounded bg-light">
@@ -395,19 +583,14 @@ const Assets = () => {
                                                 <td className="border-bottom border-light py-3 px-4">
                                                     <span className="text-muted">{asset.type}</span>
                                                 </td>
-                                                <td className="border-bottom border-light py-3 px-4">
-                                                    <Badge color="light" className="text-dark border">
-                                                        {asset.assetTag || 'N/A'}
-                                                    </Badge>
+                                                <td className="border-bottom border-light py-3 px-4 text-end">
+                                                    <span className="text-muted">
+                                                        {asset.price ? `$${parseFloat(asset.price).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '-'}
+                                                    </span>
                                                 </td>
                                                 <td className="border-bottom border-light py-3 px-4">
                                                     <span className="text-muted small">
                                                         {asset.modelNumber || '-'}
-                                                    </span>
-                                                </td>
-                                                <td className="border-bottom border-light py-3 px-4">
-                                                    <span className="text-muted font-monospace small">
-                                                        {asset.serial || '-'}
                                                     </span>
                                                 </td>
                                                 <td className="border-bottom border-light py-3 px-4">
@@ -556,10 +739,10 @@ const Assets = () => {
                 <ModalHeader toggle={toggleModal}>
                     {isEditMode ? 'Edit Asset' : 'Enroll New Asset'}
                 </ModalHeader>
-                <Form onSubmit={handleSubmit}>
+                <Form onSubmit={handleSubmit} noValidate>
                     <ModalBody className="px-4 py-4">
                         <Row className="mb-3">
-                            <Col md={8}>
+                            <Col md={6}>
                                 <FormGroup>
                                     <Label for="name" className="fw-medium">Asset Name</Label>
                                     <Input
@@ -569,67 +752,109 @@ const Assets = () => {
                                         value={formData.name}
                                         onChange={handleChange}
                                         invalid={!!errors.name}
-                                        className="form-control-lg"
                                     />
                                     {errors.name && <div className="invalid-feedback d-block">{errors.name}</div>}
                                 </FormGroup>
                             </Col>
-                            <Col md={4}>
+                            <Col md={6}>
                                 <FormGroup>
                                     <Label for="type" className="fw-medium">Type</Label>
-                                    <Input
-                                        id="type"
-                                        name="type"
-                                        type="select"
-                                        value={formData.type}
-                                        onChange={handleChange}
-                                        className="form-control-lg"
-                                    >
-                                        <option value="Laptop">Laptop</option>
-                                        <option value="Mobile">Mobile</option>
-                                        <option value="Storage">Storage</option>
-                                        <option value="Peripheral (Keyboard, Mouse, etc.)">Peripheral</option>
-                                        <option value="Furniture (Chair, Desk, etc.)">Furniture</option>
-                                        <option value="Other">Other</option>
-                                    </Input>
+                                    <UncontrolledDropdown>
+                                        <DropdownToggle
+                                            caret
+                                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                                            style={{
+                                                borderRadius: '0.375rem',
+                                                border: '1px solid #ced4da',
+                                                backgroundColor: 'white',
+                                                padding: '0.375rem 0.75rem',
+                                                color: '#495057'
+                                            }}
+                                        >
+                                            {formData.type}
+                                        </DropdownToggle>
+                                        <DropdownMenu className="w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Laptop' }))}>
+                                                Laptop
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Mobile' }))}>
+                                                Mobile
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Storage' }))}>
+                                                Storage
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Peripheral' }))}>
+                                                Peripheral
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Furniture (Chair, Desk, etc.)' }))}>
+                                                Furniture
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, type: 'Other' }))}>
+                                                Other
+                                            </DropdownItem>
+                                        </DropdownMenu>
+                                    </UncontrolledDropdown>
                                 </FormGroup>
                             </Col>
                         </Row>
 
                         <Row className="mb-3">
-                            <Col md={6}>
-                                <FormGroup>
-                                    <Label for="assetTag" className="fw-medium">Asset Tag <span className="text-danger">*</span></Label>
-                                    <Input
-                                        id="assetTag"
-                                        name="assetTag"
-                                        placeholder="e.g. AST-001"
-                                        value={formData.assetTag}
-                                        onChange={handleChange}
-                                        invalid={!!errors.assetTag}
-                                        required
-                                        className="form-control-lg"
-                                    />
-                                    {errors.assetTag && <div className="invalid-feedback d-block">{errors.assetTag}</div>}
-                                </FormGroup>
-                            </Col>
-                            <Col md={6}>
+                            {isEditMode && (
+                                <Col md={6}>
+                                    <FormGroup>
+                                        <Label for="assetTag" className="fw-medium">Asset Tag</Label>
+                                        <Input
+                                            id="assetTag"
+                                            name="assetTag"
+                                            placeholder="e.g. AST-001"
+                                            value={formData.assetTag}
+                                            onChange={handleChange}
+                                            invalid={!!errors.assetTag}
+                                            required
+                                            readOnly={isEditMode}
+                                            disabled={isEditMode}
+                                            style={isEditMode ? { backgroundColor: '#e9ecef', cursor: 'not-allowed' } : {}}
+                                        />
+                                        {isEditMode && <small className="text-muted d-block mt-1">Asset tag cannot be changed after asset creation</small>}
+                                        {errors.assetTag && <div className="invalid-feedback d-block">{errors.assetTag}</div>}
+                                    </FormGroup>
+                                </Col>
+                            )}
+                            <Col md={isEditMode ? 6 : 12}>
                                 <FormGroup>
                                     <Label for="status" className="fw-medium">Status</Label>
-                                    <Input
-                                        id="status"
-                                        name="status"
-                                        type="select"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                        disabled={!!formData.assignedTo}
-                                        className="form-control-lg"
-                                    >
-                                        <option value="Available">Available</option>
-                                        <option value="Assigned">Assigned</option>
-                                        <option value="Under maintenance">Under maintenance</option>
-                                        <option value="Discarded">Discarded</option>
-                                    </Input>
+                                    <UncontrolledDropdown>
+                                        <DropdownToggle
+                                            caret
+                                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                                            style={{
+                                                borderRadius: '0.375rem',
+                                                border: '1px solid #ced4da',
+                                                backgroundColor: formData.assignedTo ? '#e9ecef' : 'white',
+                                                padding: '0.375rem 0.75rem',
+                                                color: '#495057',
+                                                cursor: formData.assignedTo ? 'not-allowed' : 'pointer',
+                                                opacity: formData.assignedTo ? 0.6 : 1
+                                            }}
+                                            disabled={!!formData.assignedTo}
+                                        >
+                                            {formData.status}
+                                        </DropdownToggle>
+                                        <DropdownMenu className="w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, status: 'Available' }))}>
+                                                Available
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, status: 'Assigned' }))}>
+                                                Assigned
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, status: 'Under maintenance' }))}>
+                                                Under maintenance
+                                            </DropdownItem>
+                                            <DropdownItem onClick={() => setFormData(prev => ({ ...prev, status: 'Discarded' }))}>
+                                                Discarded
+                                            </DropdownItem>
+                                        </DropdownMenu>
+                                    </UncontrolledDropdown>
                                 </FormGroup>
                             </Col>
                         </Row>
@@ -644,7 +869,6 @@ const Assets = () => {
                                         placeholder="e.g. MBP-2023"
                                         value={formData.modelNumber}
                                         onChange={handleChange}
-                                        className="form-control-lg"
                                     />
                                 </FormGroup>
                             </Col>
@@ -658,9 +882,51 @@ const Assets = () => {
                                         value={formData.serial}
                                         onChange={handleChange}
                                         invalid={!!errors.serial}
-                                        className="form-control-lg"
                                     />
                                     {errors.serial && <div className="invalid-feedback d-block">{errors.serial}</div>}
+                                </FormGroup>
+                            </Col>
+                        </Row>
+
+                        <Row className="mb-3">
+                            <Col md={6}>
+                                <FormGroup>
+                                    <Label for="price" className="fw-medium">Price (USD)</Label>
+                                    <Input
+                                        id="price"
+                                        name="price"
+                                        type="text"
+                                        placeholder="0"
+                                        value={formData.price}
+                                        onChange={handleChange}
+                                        invalid={!!errors.price}
+                                        required
+                                        readOnly={isEditMode}
+                                        disabled={isEditMode}
+                                        style={isEditMode ? { backgroundColor: '#e9ecef', cursor: 'not-allowed' } : {}}
+                                    />
+                                    {errors.price && <div className="invalid-feedback d-block">{errors.price}</div>}
+                                    {isEditMode && <small className="text-muted d-block mt-1">Price cannot be changed after asset creation</small>}
+                                </FormGroup>
+                            </Col>
+                            <Col md={6}>
+                                <FormGroup>
+                                    <Label for="purchaseDate" className="fw-medium">Purchase Date</Label>
+                                    <Input
+                                        id="purchaseDate"
+                                        name="purchaseDate"
+                                        type="date"
+                                        value={formData.purchaseDate}
+                                        onChange={handleChange}
+                                        max={new Date().toISOString().split('T')[0]}
+                                        required
+                                        invalid={!!errors.purchaseDate}
+                                        readOnly={isEditMode}
+                                        disabled={isEditMode}
+                                        style={isEditMode ? { backgroundColor: '#e9ecef', cursor: 'not-allowed' } : {}}
+                                    />
+                                    {errors.purchaseDate && <div className="invalid-feedback d-block">{errors.purchaseDate}</div>}
+                                    {isEditMode && <small className="text-muted d-block mt-1">Purchase date cannot be changed after asset creation</small>}
                                 </FormGroup>
                             </Col>
                         </Row>
@@ -679,7 +945,6 @@ const Assets = () => {
                                             value={formData.quantity}
                                             onChange={handleChange}
                                             invalid={!!errors.quantity}
-                                            className="form-control-lg"
                                         />
                                         <small className="text-muted">
                                             Enter quantity &gt; 1 to create multiple assets with auto-generated tags
@@ -692,31 +957,55 @@ const Assets = () => {
                                 <Col md={!isEditMode ? 6 : 12}>
                                     <FormGroup>
                                         <Label for="assignedTo" className="fw-medium">Assign To <span className="text-muted small">(Optional)</span></Label>
-                                        <Input
-                                            id="assignedTo"
-                                            name="assignedTo"
-                                            type="select"
-                                            value={formData.assignedTo}
-                                            onChange={handleChange}
-                                            className="form-control-lg"
-                                        >
-                                            <option value="">-- Available --</option>
-                                            {employees.map(emp => (
-                                                <option key={emp.id} value={emp.name}>
-                                                    {emp.name} ({emp.role})
-                                                </option>
-                                            ))}
-                                        </Input>
+                                        <div className="position-relative mb-2">
+                                            <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
+                                            <Input
+                                                placeholder="Search employees..."
+                                                className="ps-5"
+                                                value={employeeSearch}
+                                                onChange={(e) => setEmployeeSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="border rounded bg-white p-2" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                                            <div
+                                                className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${!formData.assignedTo ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
+                                                onClick={() => setFormData(prev => ({ ...prev, assignedTo: '', status: 'Available' }))}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <div className="fw-medium text-dark">-- Available --</div>
+                                            </div>
+                                            {employees
+                                                .filter(emp =>
+                                                    emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                    emp.role.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+                                                    emp.department.toLowerCase().includes(employeeSearch.toLowerCase())
+                                                )
+                                                .map(emp => {
+                                                    const isSelected = formData.assignedTo === emp.name;
+                                                    return (
+                                                        <div
+                                                            key={emp.id}
+                                                            className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
+                                                            onClick={() => setFormData(prev => ({ ...prev, assignedTo: emp.name, status: 'Assigned' }))}
+                                                            style={{ cursor: 'pointer' }}
+                                                        >
+                                                            <div>
+                                                                <div className="fw-medium text-dark">{emp.name}</div>
+                                                                <small className="text-muted">{emp.role} • {emp.department}</small>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
                                     </FormGroup>
                                 </Col>
                             )}
                         </Row>
                     </ModalBody>
-                    <ModalFooter className="px-4 py-3">
-                        <Button color="light" size="lg" className="border" onClick={toggleModal}>Cancel</Button>
+                    <ModalFooter className="px-4 py-3" style={{ borderTop: 'none' }}>
+                        <Button color="light" className="border" onClick={toggleModal}>Cancel</Button>
                         <Button
                             type="submit"
-                            size="lg"
                             style={{
                                 background: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
                                 border: 'none',
@@ -742,6 +1031,224 @@ const Assets = () => {
                     <Button color="danger" onClick={handleDeleteAsset}>Delete</Button>
                 </ModalFooter>
             </Modal >
+
+            {/* Barcode Print View */}
+            {showBarcodeView && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'white',
+                        zIndex: 9999,
+                        overflow: 'auto'
+                    }}
+                >
+                    {/* Print Controls - Hidden when printing */}
+                    <div
+                        className="d-print-none p-4 border-bottom"
+                        style={{
+                            position: 'sticky',
+                            top: 0,
+                            backgroundColor: 'white',
+                            zIndex: 1000
+                        }}
+                    >
+                        <div className="d-flex justify-content-between align-items-center">
+                            <h3 className="mb-0">QR Code Labels ({getSelectedAssetObjects().length})</h3>
+                            <div className="d-flex gap-2">
+                                <Button
+                                    color="primary"
+                                    onClick={handlePrint}
+                                    className="d-flex align-items-center gap-2"
+                                >
+                                    <Printer size={18} />
+                                    Print QR Codes
+                                </Button>
+                                <Button
+                                    color="success"
+                                    onClick={handleDownloadPDF}
+                                    className="d-flex align-items-center gap-2"
+                                >
+                                    <Download size={18} />
+                                    Download as PDF
+                                </Button>
+                                <Button
+                                    color="light"
+                                    className="border"
+                                    onClick={() => {
+                                        setShowBarcodeView(false);
+                                        setSelectedAssets([]);
+                                    }}
+                                >
+                                    <X size={18} />
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Barcode Grid - Compact Label Format */}
+                    <div
+                        data-pdf-content
+                        style={{
+                            padding: '20px',
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: '15px',
+                            pageBreakInside: 'avoid'
+                        }}
+                    >
+                        {getSelectedAssetObjects().map((asset, index) => {
+                            return (
+                                <div
+                                    key={asset.id}
+                                    style={{
+                                        border: '1px dashed #d1d5db',
+                                        borderRadius: '6px',
+                                        padding: '16px 12px',
+                                        textAlign: 'center',
+                                        backgroundColor: 'white',
+                                        pageBreakInside: 'avoid',
+                                        breakInside: 'avoid',
+                                        minHeight: '230px',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    {/* Company Logo and Property Text */}
+                                    <div
+                                        style={{
+                                            width: '100%',
+                                            marginBottom: '12px',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <img
+                                            src="/valus-logo.svg"
+                                            alt="Valus.io"
+                                            style={{
+                                                height: '24px',
+                                                width: 'auto',
+                                                objectFit: 'contain'
+                                            }}
+                                        />
+                                        <div
+                                            style={{
+                                                fontSize: '9px',
+                                                fontWeight: '600',
+                                                color: '#374151',
+                                                letterSpacing: '0.3px'
+                                            }}
+                                        >
+                                            This is the Property of Valus.io
+                                        </div>
+                                    </div>
+
+                                    {/* QR Code */}
+                                    <div style={{ margin: '8px 0', display: 'flex', justifyContent: 'center' }}>
+                                        {(() => {
+                                            try {
+                                                if (!asset.assetTag) {
+                                                    return <div style={{ fontSize: '10px', color: '#ef4444' }}>No asset tag</div>;
+                                                }
+
+                                                const assetTagString = String(asset.assetTag).trim();
+
+                                                if (assetTagString.length === 0) {
+                                                    return <div style={{ fontSize: '10px', color: '#ef4444' }}>Invalid tag</div>;
+                                                }
+
+                                                // Create QR code data with asset information in readable format
+                                                const qrData = `========================
+   V A L U S . I O
+ Property Information
+========================
+
+This device is the property 
+of Valus.io
+
+Asset Tag: ${asset.assetTag}
+Name: ${asset.name}
+Type: ${asset.type}
+Serial: ${asset.serial || 'N/A'}
+Assigned To: ${asset.assignedTo || 'Unassigned'}
+Status: ${asset.status}
+
+------------------------
+If found, please contact:
++92 xxxxxx
+
+Valus.io - All Rights Reserved`;
+
+                                                return (
+                                                    <QRCodeCanvas
+                                                        value={qrData}
+                                                        size={120}
+                                                        level="M"
+                                                        includeMargin={true}
+                                                    />
+                                                );
+                                            } catch (error) {
+                                                console.error('QR code rendering error for asset:', asset.assetTag, error);
+                                                return (
+                                                    <div style={{ fontSize: '9px', color: '#ef4444', padding: '5px' }}>
+                                                        Error: {asset.assetTag}
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
+                                    </div>
+
+                                    {/* Asset Details */}
+                                    <div style={{ marginTop: '8px', borderTop: '1px solid #f3f4f6', paddingTop: '8px', width: '100%' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#1f2937', marginBottom: '3px', lineHeight: '1.2' }}>
+                                            {asset.assetTag}
+                                        </div>
+                                        <div style={{ fontSize: '10px', fontWeight: '600', color: '#374151', marginBottom: '2px', lineHeight: '1.2' }}>
+                                            {asset.name.length > 20 ? asset.name.substring(0, 20) + '...' : asset.name}
+                                        </div>
+                                        <div style={{ fontSize: '8px', color: '#6b7280', lineHeight: '1.2' }}>
+                                            {asset.type}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Print Styles */}
+                    <style>{`
+                        @media print {
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                            
+                            @page {
+                                size: A4;
+                                margin: 10mm;
+                            }
+                            
+                            .d-print-none {
+                                display: none !important;
+                            }
+                            
+                            /* Ensure labels don't break across pages */
+                            div[style*="breakInside"] {
+                                page-break-inside: avoid;
+                                break-inside: avoid;
+                            }
+                        }
+                    `}</style>
+                </div>
+            )}
         </div >
     );
 };

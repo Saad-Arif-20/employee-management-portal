@@ -253,18 +253,18 @@ body {
   transform: none !important;
 }
 
-/* Pulse animation for deadline warnings */
-@keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
+/* Gradient animation for deadline warnings - less disturbing */
+@keyframes gradientShiftWarning {
+  0% {
+    background-position: 0% 50%;
   }
 
   50% {
-    opacity: 0.85;
-    transform: scale(1.02);
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
   }
 }
 
@@ -310,4 +310,112 @@ body {
 /* Custom tooltip padding to match custom tooltips */
 .custom-tooltip-padding {
   padding: 8px 12px !important;
+}
+
+/* Dropdown menu custom styling - green theme */
+.dropdown-menu .dropdown-item:hover,
+.dropdown-menu .dropdown-item:focus {
+  background-color: #0d3b2e !important;
+  color: white !important;
+}
+
+.dropdown-menu .dropdown-item:active {
+  background-color: #145c47 !important;
+  color: white !important;
+}
+
+.dropdown-menu .dropdown-item.active {
+  background-color: #0d3b2e !important;
+  color: white !important;
+}
+
+/* Select dropdown options custom styling - green theme */
+select option:checked,
+select option:hover {
+  background-color: #0d3b2e !important;
+  background: #0d3b2e !important;
+  color: white !important;
+}
+
+select option {
+  background-color: white;
+  color: #333;
+  padding: 8px;
+}
+
+/* Firefox specific */
+select option:checked {
+  background: linear-gradient(#0d3b2e, #0d3b2e) !important;
+  background-color: #0d3b2e !important;
+  color: white !important;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+select:focus option:checked {
+  background-color: #0d3b2e !important;
+  background: #0d3b2e !important;
+  color: white !important;
+}
+
+/* Additional attempts for hover state */
+select option:hover,
+select option:focus,
+select option:active {
+  background-color: #0d3b2e !important;
+  background: #0d3b2e !important;
+  color: white !important;
+  outline: none !important;
+}
+
+/* Custom dropdown item styling with higher specificity */
+.dropdown-menu .dropdown-item-custom:hover,
+.dropdown-menu .dropdown-item-custom:focus {
+  background-color: #0d3b2e !important;
+  color: white !important;
+}
+
+.dropdown-menu .dropdown-item-custom:active {
+  background-color: #145c47 !important;
+  color: white !important;
+}
+
+/* Override Bootstrap dropdown defaults with maximum specificity */
+.dropdown-menu>.dropdown-item:hover,
+.dropdown-menu>.dropdown-item:focus,
+.dropdown-menu>.dropdown-item.dropdown-item-custom:hover,
+.dropdown-menu>.dropdown-item.dropdown-item-custom:focus {
+  background-color: #0d3b2e !important;
+  color: white !important;
+  background-image: none !important;
+}
+
+.dropdown-menu>.dropdown-item:active,
+.dropdown-menu>.dropdown-item.dropdown-item-custom:active {
+  background-color: #145c47 !important;
+  color: white !important;
+  background-image: none !important;
+}
+
+/* Ensure no grey background from Bootstrap */
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: #0d3b2e !important;
+  color: white !important;
+}
+
+/* Modal-specific dropdown styling - highest priority */
+.modal .dropdown-menu .dropdown-item:hover,
+.modal .dropdown-menu .dropdown-item:focus,
+.modal-body .dropdown-menu .dropdown-item:hover,
+.modal-body .dropdown-menu .dropdown-item:focus {
+  background-color: #0d3b2e !important;
+  color: white !important;
+  background-image: none !important;
+}
+
+.modal .dropdown-menu .dropdown-item:active,
+.modal-body .dropdown-menu .dropdown-item:active {
+  background-color: #145c47 !important;
+  color: white !important;
+  background-image: none !important;
 }

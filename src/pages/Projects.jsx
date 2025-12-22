@@ -97,6 +97,7 @@ const Projects = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editingProjectId, setEditingProjectId] = useState(null);
+    const [originalStartDate, setOriginalStartDate] = useState(''); // Track original start date for edit validation
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -114,10 +115,17 @@ const Projects = () => {
     // Search state
     const [leadSearchTerm, setLeadSearchTerm] = useState('');
     const [teamSearchTerm, setTeamSearchTerm] = useState('');
+    // Track original team members for sorting (prevents re-sort during selection)
+    const [originalTeamMembers, setOriginalTeamMembers] = useState([]);
 
     // Delete Confirmation Modal
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState(null);
+
+    // Filter states
+    const [statusFilter, setStatusFilter] = useState('All');
+    const [deadlineFilter, setDeadlineFilter] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
 
     const confirmDelete = (projectId) => {
         setProjectToDelete(projectId);
@@ -133,8 +141,16 @@ const Projects = () => {
     };
 
     const toggleModal = () => {
+        const willClose = isModalOpen; // Capture current state before toggle
         setIsModalOpen(!isModalOpen);
         setErrors({});
+        // Reset search terms when closing modal
+        setLeadSearchTerm('');
+        setTeamSearchTerm('');
+        // Only reset originalTeamMembers when CLOSING the modal
+        if (willClose) {
+            setOriginalTeamMembers([]);
+        }
     };
 
     const handleNewClick = () => {
@@ -150,6 +166,8 @@ const Projects = () => {
         });
         setIsEditMode(false);
         setEditingProjectId(null);
+        setOriginalStartDate(''); // Reset original start date
+        setOriginalTeamMembers([]); // Reset original team members
         toggleModal();
     };
 
@@ -166,6 +184,8 @@ const Projects = () => {
         });
         setIsEditMode(true);
         setEditingProjectId(project.id);
+        setOriginalStartDate(project.startDate || ''); // Store original start date
+        setOriginalTeamMembers(project.team || []); // Store original team members
         toggleModal();
     };
 
@@ -183,11 +203,17 @@ const Projects = () => {
     const validate = () => {
         const newErrors = {};
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayStr = today.toISOString().split('T')[0];
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
         const threeMonthsFromToday = new Date(today);
         threeMonthsFromToday.setMonth(threeMonthsFromToday.getMonth() + 3);
-        const maxDeadlineStr = threeMonthsFromToday.toISOString().split('T')[0];
+        const maxYear = threeMonthsFromToday.getFullYear();
+        const maxMonth = String(threeMonthsFromToday.getMonth() + 1).padStart(2, '0');
+        const maxDay = String(threeMonthsFromToday.getDate()).padStart(2, '0');
+        const maxDeadlineStr = `${maxYear}-${maxMonth}-${maxDay}`;
 
         if (!formData.title) newErrors.title = 'Project title is required';
         if (!formData.description) newErrors.description = 'Description is required';
@@ -195,6 +221,8 @@ const Projects = () => {
             newErrors.startDate = 'Start date is required';
         } else if (formData.startDate < todayStr && !isEditMode) {
             newErrors.startDate = 'Start date cannot be in the past';
+        } else if (isEditMode && originalStartDate && formData.startDate < originalStartDate) {
+            newErrors.startDate = 'Start date cannot be earlier than the original start date';
         }
         if (!formData.deadline) {
             newErrors.deadline = 'Deadline is required';
@@ -256,13 +284,19 @@ const Projects = () => {
         }
     };
 
-    // Date constants for input attributes
+    // Date constants for input attributes (using local timezone)
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
     const threeMonthsFromToday = new Date(today);
     threeMonthsFromToday.setMonth(threeMonthsFromToday.getMonth() + 3);
-    const maxDeadlineStr = threeMonthsFromToday.toISOString().split('T')[0];
+    const maxYear = threeMonthsFromToday.getFullYear();
+    const maxMonth = String(threeMonthsFromToday.getMonth() + 1).padStart(2, '0');
+    const maxDay = String(threeMonthsFromToday.getDate()).padStart(2, '0');
+    const maxDeadlineStr = `${maxYear}-${maxMonth}-${maxDay}`;
 
     return (
         <div className="container-fluid py-4">
@@ -285,8 +319,123 @@ const Projects = () => {
                     <span>New Project</span>
                 </Button>
             </div>
+
+            {/* Filters */}
+            <div className="mb-4 d-flex gap-3 align-items-center flex-wrap">
+                <div style={{ minWidth: '300px', maxWidth: '350px' }}>
+                    <Label className="fw-medium mb-2">Search Projects</Label>
+                    <div className="position-relative">
+                        <Search size={16} className="text-muted position-absolute" style={{ top: '10px', left: '10px' }} />
+                        <Input
+                            placeholder="Search by project name..."
+                            className="ps-5"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0'
+                            }}
+                        />
+                    </div>
+                </div>
+                <div style={{ minWidth: '200px' }}>
+                    <Label className="fw-medium mb-2">Filter by Status</Label>
+                    <UncontrolledDropdown>
+                        <DropdownToggle
+                            caret
+                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                            style={{
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                backgroundColor: 'white',
+                                padding: '0.375rem 0.75rem',
+                                color: '#6c757d'
+                            }}
+                        >
+                            {statusFilter === 'All' ? 'All Statuses' : statusFilter}
+                        </DropdownToggle>
+                        <DropdownMenu className="w-100">
+                            <DropdownItem onClick={() => setStatusFilter('All')}>All Statuses</DropdownItem>
+                            <DropdownItem onClick={() => setStatusFilter('Planning')}>Planning</DropdownItem>
+                            <DropdownItem onClick={() => setStatusFilter('In Progress')}>In Progress</DropdownItem>
+                            <DropdownItem onClick={() => setStatusFilter('On Hold')}>On Hold</DropdownItem>
+                            <DropdownItem onClick={() => setStatusFilter('Completed')}>Completed</DropdownItem>
+                        </DropdownMenu>
+                    </UncontrolledDropdown>
+                </div>
+                <div style={{ minWidth: '280px' }}>
+                    <Label className="fw-medium mb-2">Filter by Deadline</Label>
+                    <UncontrolledDropdown>
+                        <DropdownToggle
+                            caret
+                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                            style={{
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                backgroundColor: 'white',
+                                padding: '0.375rem 0.75rem',
+                                color: '#6c757d'
+                            }}
+                        >
+                            {deadlineFilter === 'All' ? 'All Deadlines' :
+                                deadlineFilter === 'Overdue' ? 'Overdue' :
+                                    'Deadline Approaching (7 days)'}
+                        </DropdownToggle>
+                        <DropdownMenu className="w-100">
+                            <DropdownItem onClick={() => setDeadlineFilter('All')}>All Deadlines</DropdownItem>
+                            <DropdownItem onClick={() => setDeadlineFilter('Overdue')}>Overdue</DropdownItem>
+                            <DropdownItem onClick={() => setDeadlineFilter('Approaching')}>Deadline Approaching (7 days)</DropdownItem>
+                        </DropdownMenu>
+                    </UncontrolledDropdown>
+                </div>
+                {(statusFilter !== 'All' || deadlineFilter !== 'All' || searchQuery !== '') && (
+                    <Button
+                        color="light"
+                        size="sm"
+                        onClick={() => {
+                            setStatusFilter('All');
+                            setDeadlineFilter('All');
+                            setSearchQuery('');
+                        }}
+                        style={{ marginTop: '28px' }}
+                    >
+                        Clear Filters
+                    </Button>
+                )}
+            </div>
+
             <Row className="g-4">
-                {projects.map(project => {
+                {projects.filter(project => {
+                    // Filter by search query
+                    if (searchQuery !== '') {
+                        const query = searchQuery.toLowerCase();
+                        const titleMatch = project.title.toLowerCase().includes(query);
+                        if (!titleMatch) {
+                            return false;
+                        }
+                    }
+
+                    // Filter by status
+                    if (statusFilter !== 'All' && project.status !== statusFilter) {
+                        return false;
+                    }
+
+                    // Filter by deadline
+                    if (deadlineFilter !== 'All') {
+                        const deadline = new Date(project.deadline);
+                        const today = new Date();
+                        const daysRemaining = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+
+                        if (deadlineFilter === 'Overdue' && (daysRemaining > 0 || project.status === 'Completed')) {
+                            return false;
+                        }
+                        if (deadlineFilter === 'Approaching' && (daysRemaining > 7 || daysRemaining <= 0 || project.status === 'Completed')) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }).map(project => {
                     // Calculate time remaining
                     const deadline = new Date(project.deadline);
                     const today = new Date();
@@ -297,8 +446,8 @@ const Projects = () => {
                         'In Progress': {
                             color: '#ffffff',
                             badgeBg: 'rgba(255, 255, 255, 0.2)',
-                            bgGradient: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
-                            borderColor: '#0d3b2e',
+                            bgGradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            borderColor: '#10b981',
                             textColor: '#ffffff'
                         },
                         'Planning': {
@@ -318,8 +467,8 @@ const Projects = () => {
                         'Completed': {
                             color: '#ffffff',
                             badgeBg: 'rgba(255, 255, 255, 0.2)',
-                            bgGradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                            borderColor: '#10b981',
+                            bgGradient: 'linear-gradient(135deg, #0d3b2e 0%, #145c47 100%)',
+                            borderColor: '#0d3b2e',
                             textColor: '#ffffff'
                         }
                     };
@@ -372,7 +521,8 @@ const Projects = () => {
                                             {daysRemaining <= 7 && daysRemaining > 0 && project.status !== 'Completed' && (
                                                 <Badge
                                                     style={{
-                                                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #ef4444 100%)',
+                                                        backgroundSize: '200% 200%',
                                                         color: 'white',
                                                         fontWeight: '600',
                                                         fontSize: '0.75rem',
@@ -380,7 +530,6 @@ const Projects = () => {
                                                         borderRadius: '50px',
                                                         boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)',
                                                         border: 'none',
-                                                        animation: 'pulse 2s ease-in-out infinite'
                                                     }}
                                                 >
                                                     ⚠️ Deadline Approaching
@@ -389,7 +538,8 @@ const Projects = () => {
                                             {daysRemaining <= 0 && project.status !== 'Completed' && (
                                                 <Badge
                                                     style={{
-                                                        background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+                                                        background: 'linear-gradient(135deg, #dc2626 0%, #991b1b 50%, #dc2626 100%)',
+                                                        backgroundSize: '200% 200%',
                                                         color: 'white',
                                                         fontWeight: '600',
                                                         fontSize: '0.75rem',
@@ -397,7 +547,6 @@ const Projects = () => {
                                                         borderRadius: '50px',
                                                         boxShadow: '0 4px 12px rgba(220, 38, 38, 0.5)',
                                                         border: 'none',
-                                                        animation: 'pulse 2s ease-in-out infinite'
                                                     }}
                                                 >
                                                     🚨 Overdue
@@ -658,18 +807,44 @@ const Projects = () => {
                             <Col md={6}>
                                 <FormGroup>
                                     <Label for="status" className="fw-medium">Status</Label>
-                                    <Input
-                                        id="status"
-                                        name="status"
-                                        type="select"
-                                        value={formData.status}
-                                        onChange={handleChange}
-                                    >
-                                        <option value="Planning">Planning</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="On Hold">On Hold</option>
-                                        <option value="Completed">Completed</option>
-                                    </Input>
+                                    <UncontrolledDropdown>
+                                        <DropdownToggle
+                                            caret
+                                            className="w-100 text-start d-flex justify-content-between align-items-center"
+                                            style={{
+                                                borderRadius: '8px',
+                                                border: '1px solid #ced4da',
+                                                backgroundColor: 'white',
+                                                padding: '0.375rem 0.75rem',
+                                                color: '#495057',
+                                                fontSize: '1rem'
+                                            }}
+                                        >
+                                            {formData.status}
+                                        </DropdownToggle>
+                                        <DropdownMenu className="w-100" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                            <DropdownItem
+                                                onClick={() => setFormData(prev => ({ ...prev, status: 'Planning' }))}
+                                            >
+                                                Planning
+                                            </DropdownItem>
+                                            <DropdownItem
+                                                onClick={() => setFormData(prev => ({ ...prev, status: 'In Progress' }))}
+                                            >
+                                                In Progress
+                                            </DropdownItem>
+                                            <DropdownItem
+                                                onClick={() => setFormData(prev => ({ ...prev, status: 'On Hold' }))}
+                                            >
+                                                On Hold
+                                            </DropdownItem>
+                                            <DropdownItem
+                                                onClick={() => setFormData(prev => ({ ...prev, status: 'Completed' }))}
+                                            >
+                                                Completed
+                                            </DropdownItem>
+                                        </DropdownMenu>
+                                    </UncontrolledDropdown>
                                 </FormGroup>
                             </Col>
                         </Row>
@@ -699,7 +874,7 @@ const Projects = () => {
                                         id="startDate"
                                         name="startDate"
                                         type="date"
-                                        min={todayStr}
+                                        min={isEditMode ? originalStartDate : todayStr}
                                         value={formData.startDate}
                                         onChange={handleChange}
                                         invalid={!!errors.startDate}
@@ -714,6 +889,7 @@ const Projects = () => {
                                         id="deadline"
                                         name="deadline"
                                         type="date"
+                                        min={formData.startDate || todayStr}
                                         max={maxDeadlineStr}
                                         value={formData.deadline}
                                         onChange={handleChange}
@@ -793,6 +969,14 @@ const Projects = () => {
                                                 if (isLead) return false;
                                                 return emp.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) ||
                                                     emp.role.toLowerCase().includes(teamSearchTerm.toLowerCase());
+                                            })
+                                            .sort((a, b) => {
+                                                // Sort based on ORIGINAL team members (when modal opened), not current selection
+                                                const aSelected = originalTeamMembers.includes(a.name);
+                                                const bSelected = originalTeamMembers.includes(b.name);
+                                                if (aSelected && !bSelected) return -1;
+                                                if (!aSelected && bSelected) return 1;
+                                                return 0; // Keep original order for same selection status
                                             })
                                             .map(emp => {
                                                 const isSelected = formData.team.includes(emp.name);
