@@ -484,63 +484,83 @@ export const MOCK_EMPLOYEES = [
 export const MOCK_PROJECTS = [
     {
         id: 101,
-        title: "Website Redesign",
-        description: "Complete overhaul of the company website with new branding and improved UX.",
+        title: "E-Commerce Platform Launch",
+        description: "Development and launch of a new e-commerce platform with payment integration and inventory management.",
         status: "In Progress",
-        startDate: "2024-01-15",
-        deadline: "2024-04-30",
+        startDate: "2025-06-15",
+        deadline: "2025-09-30",
         lead: "Sarah Jenkins",
-        team: ["Mike Chen", "Jessica Wu", "David Miller"]
+        team: ["Mike Chen", "David Miller", "Emma Wilson", "Andrew Kim"]
     },
     {
         id: 102,
-        title: "Mobile App Development",
-        description: "Native mobile application for iOS and Android platforms.",
+        title: "Mobile App Redesign",
+        description: "Complete UI/UX overhaul of the mobile application for iOS and Android platforms.",
         status: "Planning",
-        startDate: "2024-03-01",
-        deadline: "2024-08-15",
-        lead: "Sarah Jenkins",
-        team: ["Mike Chen", "Robert Martinez"]
+        startDate: "2025-07-01",
+        deadline: "2025-10-15",
+        lead: "Jessica Wu",
+        team: ["Christopher Moore", "Ava Mitchell", "Victoria Chen"]
     },
     {
         id: 103,
-        title: "Internal Dashboard",
-        description: "Analytics dashboard for internal team performance tracking.",
-        status: "Completed",
-        startDate: "2023-09-01",
-        deadline: "2023-12-20",
-        lead: "David Miller",
-        team: ["Jennifer Thomas", "Daniel Harris"]
+        title: "AI-Powered Analytics Dashboard",
+        description: "Building an advanced analytics dashboard with machine learning insights and predictive analytics.",
+        status: "In Progress",
+        startDate: "2025-08-10",
+        deadline: "2025-12-20",
+        lead: "Lucas Wright",
+        team: ["Kevin Brown", "Samantha Lee", "Derek Thompson"]
     },
     {
         id: 104,
-        title: "Marketing Campaign Q2",
-        description: "Digital marketing campaign for the upcoming product launch.",
-        status: "In Progress",
-        startDate: "2024-02-01",
-        deadline: "2024-05-30",
-        lead: "Emily Wilson",
-        team: ["James Taylor", "William Jackson", "Patricia White"]
+        title: "Cloud Infrastructure Migration",
+        description: "Migrating all services from on-premise servers to AWS cloud infrastructure.",
+        status: "On Hold",
+        startDate: "2025-09-01",
+        deadline: "2026-01-31",
+        lead: "Robert Martinez",
+        team: ["Marcus Johnson", "Ryan Cooper", "Ethan Rivera"]
     },
     {
         id: 105,
-        title: "Cloud Migration",
-        description: "Migrating legacy infrastructure to AWS cloud services.",
-        status: "In Progress",
-        startDate: "2024-01-10",
-        deadline: "2024-06-30",
-        lead: "Robert Martinez",
-        team: ["David Miller", "Jennifer Thomas"]
+        title: "Customer Portal Enhancement",
+        description: "Adding new features to the customer portal including live chat, ticketing system, and knowledge base.",
+        status: "Completed",
+        startDate: "2025-06-20",
+        deadline: "2025-08-30",
+        lead: "Emily Wilson",
+        team: ["Olivia Parker", "Nathan Clark", "Megan Phillips"]
     },
     {
         id: 106,
-        title: "HR Portal Update",
-        description: "Updating the employee management system with new features.",
+        title: "Marketing Automation System",
+        description: "Implementation of automated marketing workflows and email campaign management system.",
+        status: "In Progress",
+        startDate: "2025-10-05",
+        deadline: "2026-01-15",
+        lead: "Sophia Turner",
+        team: ["James Taylor", "Brandon Scott", "Lily Anderson", "Chloe Bennett"]
+    },
+    {
+        id: 107,
+        title: "Security Audit & Compliance",
+        description: "Comprehensive security audit and implementation of SOC 2 compliance measures.",
         status: "Planning",
-        startDate: "2024-04-01",
-        deadline: "2024-05-15",
+        startDate: "2025-11-15",
+        deadline: "2026-02-28",
+        lead: "Thomas Lee",
+        team: ["Robert Martinez", "Ryan Cooper"]
+    },
+    {
+        id: 108,
+        title: "Internal Training Platform",
+        description: "Development of an internal learning management system for employee training and onboarding.",
+        status: "On Hold",
+        startDate: "2025-09-20",
+        deadline: "2025-12-15",
         lead: "Lisa Anderson",
-        team: ["Mike Chen", "Jessica Wu"]
+        team: ["Michelle Davis", "Hannah Foster", "Nathan Clark"]
     }
 ];
 

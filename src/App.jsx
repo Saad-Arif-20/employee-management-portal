@@ -9,7 +9,6 @@ import Assets from './pages/Assets';
 import AssetDetail from './pages/AssetDetail';
 import { GlobalProvider } from './contexts/GlobalContext';
 
-// Wrapper component to force Dashboard remount
 const DashboardWrapper = () => {
   const location = useLocation();
   return <Dashboard key={location.key || 'dashboard'} />;

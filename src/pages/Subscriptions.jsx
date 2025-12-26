@@ -3,7 +3,7 @@ import {
     Card, CardBody, Button, Row, Col, Badge, Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input, InputGroup, InputGroupText, CardTitle,
     UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem
 } from 'reactstrap';
-import { Plus, CheckCircle, XCircle, Globe, Server, Shield, UserPlus, Check, Search, PlayCircle, PauseCircle, Trash2, Edit, MoreVertical, Briefcase } from 'lucide-react';
+import { Plus, Globe, Server, Shield, UserPlus, Search, PlayCircle, PauseCircle, Trash2, Edit, MoreVertical, Briefcase } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 import DateRangeFilter from '../components/DateRangeFilter';
 
@@ -92,13 +92,11 @@ const Subscriptions = () => {
         selectedEmployees: []
     });
 
-    // Filter state
     const [typeFilter, setTypeFilter] = useState('All');
     const [dateFromFilter, setDateFromFilter] = useState('');
     const [dateToFilter, setDateToFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Track saved selections for sorting (only updated when modal opens or form is submitted)
     const [savedSelectedProjects, setSavedSelectedProjects] = useState([]);
     const [savedSelectedEmployees, setSavedSelectedEmployees] = useState([]);
 
@@ -111,9 +109,7 @@ const Subscriptions = () => {
         }
     };
 
-    // Helper function to format price with commas
     const formatPrice = (price) => {
-        // Extract numeric value from price string (e.g., "$2500/mo" -> "2500")
         const match = price.match(/\$([\d.]+)\/mo/);
         if (!match) return price;
 
@@ -128,7 +124,6 @@ const Subscriptions = () => {
     const toggleModal = () => {
         setModalOpen(!modalOpen);
         setErrors({});
-        // Reset form when closing
         if (modalOpen) {
             setFormData({
                 name: '',
@@ -143,18 +138,15 @@ const Subscriptions = () => {
             setIsEditMode(false);
             setEditingSubscriptionId(null);
         } else {
-            // When opening for new subscription, reset saved selections
             setSavedSelectedProjects([]);
             setSavedSelectedEmployees([]);
         }
     };
 
     const handleEditClick = (sub) => {
-        // Extract numeric value from price for editing
         const match = sub.price.match(/\$([/\d.,]+)\/mo/);
         const numericPrice = match ? match[1].replace(/,/g, '') : '';
 
-        // Extract employee IDs from assignedTo
         const assignedEmployeeIds = (sub.assignedTo || []).map(assignment =>
             typeof assignment === 'string' ? assignment : assignment.employeeId
         );
@@ -171,7 +163,6 @@ const Subscriptions = () => {
             selectedEmployees: selectedEmployees
         });
 
-        // Set saved selections for sorting
         setSavedSelectedProjects(selectedProjects);
         setSavedSelectedEmployees(selectedEmployees);
 
@@ -210,21 +201,17 @@ const Subscriptions = () => {
         const { name, value, type, checked } = e.target;
 
         if (name === 'price') {
-            // Remove all non-digit characters except decimal point
             let numericValue = value.replace(/[^\d.]/g, '');
 
-            // Ensure only one decimal point
             const parts = numericValue.split('.');
             if (parts.length > 2) {
                 numericValue = parts[0] + '.' + parts.slice(1).join('');
             }
 
-            // Limit to 2 decimal places
             if (parts.length === 2 && parts[1].length > 2) {
                 numericValue = parts[0] + '.' + parts[1].substring(0, 2);
             }
 
-            // Format with commas
             const finalParts = numericValue.split('.');
             finalParts[0] = finalParts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             const formattedValue = finalParts.join('.');
@@ -240,7 +227,6 @@ const Subscriptions = () => {
             }));
         }
 
-        // Clear error for this field when user starts typing
         if (errors[name]) {
             setErrors(prev => ({ ...prev, [name]: '' }));
         }
@@ -253,12 +239,9 @@ const Subscriptions = () => {
             return;
         }
 
-        // Remove commas before saving
         const numericPrice = formData.price.replace(/,/g, '');
 
-        // Convert selectedEmployees to assignedTo format
         const assignedTo = formData.selectedEmployees.map(empId => {
-            // Check if this employee was already assigned (preserve existing data)
             const existingAssignment = isEditMode
                 ? subscriptions.find(s => s.id === editingSubscriptionId)?.assignedTo?.find(a =>
                     (typeof a === 'string' ? a : a.employeeId) === empId
@@ -269,7 +252,6 @@ const Subscriptions = () => {
                 return existingAssignment;
             }
 
-            // Create new assignment
             return {
                 employeeId: empId,
                 date: new Date().toISOString().split('T')[0],
@@ -287,14 +269,12 @@ const Subscriptions = () => {
         };
 
         if (isEditMode) {
-            // Update existing subscription
             const existingSub = subscriptions.find(s => s.id === editingSubscriptionId);
             updateSubscription({
                 ...existingSub,
                 ...submissionData
             });
         } else {
-            // Add new subscription
             submissionData.status = 'Active';
             addSubscription(submissionData);
         }
@@ -302,69 +282,7 @@ const Subscriptions = () => {
         toggleModal();
     };
 
-    const openAssignModal = (sub) => {
-        setSelectedSubscription(sub);
-        // Ensure backward compatibility or initialize as empty
-        const currentAssignments = sub.assignedTo || [];
-        // Normalize to array of objects if it was array of strings (migration on the fly)
-        const normalizedAssignments = currentAssignments.map(item =>
-            typeof item === 'string' ? { employeeId: item, date: new Date().toISOString().split('T')[0] } : item
-        );
-        // Store only employee IDs for selection logic
-        const employeeIds = normalizedAssignments.map(a => a.employeeId);
-        setAssignedEmployees(employeeIds);
-        setOriginalAssignedEmployees(employeeIds); // Store original for sorting
-        setAssignModalOpen(true);
-        setEmployeeSearch('');
-    };
 
-
-    const toggleAssignModal = () => {
-        setAssignModalOpen(!assignModalOpen);
-        if (assignModalOpen) {
-            setSelectedSubscription(null);
-            setAssignedEmployees([]);
-            setOriginalAssignedEmployees([]);
-        }
-    };
-
-    const toggleEmployeeAssignment = (employeeId) => {
-        setAssignedEmployees(prev => {
-            const exists = prev.includes(employeeId);
-            if (exists) {
-                return prev.filter(id => id !== employeeId);
-            } else {
-                return [...prev, employeeId];
-            }
-        });
-    };
-
-    const handleAssignSubmit = () => {
-        if (selectedSubscription) {
-            // Ensure backward compatibility and new structure
-            const updatedAssignedTo = assignedEmployees.map(empId => {
-                const existingAssignment = selectedSubscription.assignedTo?.find(a =>
-                    (typeof a === 'string' ? a : a.employeeId) === empId
-                );
-
-                if (existingAssignment && typeof existingAssignment !== 'string') {
-                    return existingAssignment;
-                }
-
-                return {
-                    employeeId: empId,
-                    date: new Date().toISOString().split('T')[0],
-                    status: 'Active'
-                };
-            });
-
-            updateSubscription({
-                ...selectedSubscription,
-                assignedTo: updatedAssignedTo
-            });
-            toggleAssignModal();
-        }
-    };
 
     const handleToggleStatus = (subscription) => {
         const newStatus = subscription.status === 'Paused' ? 'Active' : 'Paused';
@@ -500,7 +418,6 @@ const Subscriptions = () => {
 
             <Row className="g-4">
                 {subscriptions.filter(sub => {
-                    // Filter by search query
                     if (searchQuery !== '') {
                         const query = searchQuery.toLowerCase();
                         const nameMatch = sub.name.toLowerCase().includes(query);
@@ -509,12 +426,10 @@ const Subscriptions = () => {
                         }
                     }
 
-                    // Filter by type
                     if (typeFilter !== 'All' && sub.type !== typeFilter) {
                         return false;
                     }
 
-                    // Filter by start date range
                     if ((dateFromFilter || dateToFilter) && sub.startDate) {
                         const subDate = new Date(sub.startDate);
                         if (dateFromFilter) {
@@ -535,7 +450,6 @@ const Subscriptions = () => {
                 }).map((sub) => {
                     const Icon = getIcon(sub.type);
 
-                    // Type-based styling - Bold gradients matching Dashboard style
                     const typeConfig = {
                         'Software': {
                             color: '#ffffff',
@@ -573,7 +487,6 @@ const Subscriptions = () => {
                         (typeof a === 'string' ? true : a.status === 'Active')
                     );
 
-                    // Filter active projects (exclude On Hold, Completed, Removed)
                     const activeProjectsList = (sub.selectedProjects || []).filter(projectId => {
                         const project = projects.find(p => p.id === projectId);
                         return project && !['On Hold', 'Completed', 'Removed'].includes(project.status);
@@ -591,7 +504,6 @@ const Subscriptions = () => {
                                     opacity: sub.status === 'Paused' ? 0.7 : 1
                                 }}
                             >
-                                {/* Clipping container for decorative elements */}
                                 <div style={{
                                     position: 'absolute',
                                     top: 0,
@@ -603,7 +515,6 @@ const Subscriptions = () => {
                                     pointerEvents: 'none',
                                     zIndex: 0
                                 }}>
-                                    {/* Decorative gradient accent */}
                                     <div style={{
                                         position: 'absolute',
                                         top: 0,
@@ -616,7 +527,6 @@ const Subscriptions = () => {
                                 </div>
 
                                 <CardBody className="d-flex flex-column position-relative" style={{ zIndex: 1 }}>
-                                    {/* Header with icon and actions */}
                                     <div className="d-flex justify-content-between align-items-start mb-3">
                                         <div className="d-flex align-items-center gap-3">
                                             <div style={{

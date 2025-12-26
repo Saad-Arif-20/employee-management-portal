@@ -7,20 +7,17 @@ const GlobalContext = createContext();
 export const useGlobal = () => useContext(GlobalContext);
 
 export const GlobalProvider = ({ children }) => {
-    // Helper to initialize data from localStorage or fallback to mock data
     const getInitialData = (key, fallback) => {
         const saved = localStorage.getItem(key);
         return saved ? JSON.parse(saved) : fallback;
     };
 
-    // Initial Mock Data (now used as fallback)
     const [employees, setEmployees] = useState(() => getInitialData('employees', MOCK_EMPLOYEES));
     const [projects, setProjects] = useState(() => getInitialData('projects', MOCK_PROJECTS));
     const [subscriptions, setSubscriptions] = useState(() => {
         const saved = localStorage.getItem('subscriptions');
         try {
             const initial = saved ? JSON.parse(saved) : MOCK_SUBSCRIPTIONS;
-            // If it's an empty array, fallback to mock data
             if (Array.isArray(initial) && initial.length === 0) return MOCK_SUBSCRIPTIONS;
             return initial;
         } catch (e) {
@@ -30,7 +27,6 @@ export const GlobalProvider = ({ children }) => {
     });
     const [assets, setAssets] = useState(() => getInitialData('assets', MOCK_ASSETS));
 
-    // Persistence Effects
     useEffect(() => {
         localStorage.setItem('employees', JSON.stringify(employees));
     }, [employees]);
@@ -47,7 +43,6 @@ export const GlobalProvider = ({ children }) => {
         localStorage.setItem('assets', JSON.stringify(assets));
     }, [assets]);
 
-    // Data Migration Effect
     useEffect(() => {
         const needsMigration = subscriptions.some(sub => !sub.price && sub.cost);
         if (needsMigration) {
@@ -57,10 +52,9 @@ export const GlobalProvider = ({ children }) => {
                 price: sub.price || sub.cost || "$0.00/mo"
             })));
         }
-    }, []); // Run migration check only once after initial load
+    }, []);
 
 
-    // Actions
     const addEmployee = (employeeData) => {
         const { reportees, ...employee } = employeeData;
         const newId = Date.now();
@@ -68,7 +62,6 @@ export const GlobalProvider = ({ children }) => {
 
         let updatedEmployees = [...employees, newEmployee];
 
-        // If reportees were selected, update their reportingTo field
         if (reportees && reportees.length > 0) {
             updatedEmployees = updatedEmployees.map(emp => {
                 if (reportees.includes(emp.id.toString())) {
@@ -85,7 +78,6 @@ export const GlobalProvider = ({ children }) => {
         setEmployees(prevEmployees => {
             const { reportees, ...employee } = updatedData;
 
-            // 1. Update the specific employee
             let updatedEmployees = prevEmployees.map(emp => {
                 if (String(emp.id) === String(id)) {
                     return { ...emp, ...employee };
@@ -93,8 +85,6 @@ export const GlobalProvider = ({ children }) => {
                 return emp;
             });
 
-            // 2. Update reportees relationships
-            // Clear old reportees who are no longer in the list
             updatedEmployees = updatedEmployees.map(emp => {
                 if (String(emp.reportingTo) === String(id) && (!reportees || !reportees.includes(String(emp.id)))) {
                     return { ...emp, reportingTo: null };
@@ -102,7 +92,6 @@ export const GlobalProvider = ({ children }) => {
                 return emp;
             });
 
-            // Set new reportees
             if (reportees && reportees.length > 0) {
                 updatedEmployees = updatedEmployees.map(emp => {
                     if (reportees.includes(String(emp.id))) {
@@ -123,7 +112,7 @@ export const GlobalProvider = ({ children }) => {
                     ...emp,
                     status: 'Inactive',
                     deleted: true,
-                    lastWorkingDate: new Date().toISOString().split('T')[0] // Today's date in YYYY-MM-DD format
+                    lastWorkingDate: new Date().toISOString().split('T')[0]
                 };
             }
             return emp;

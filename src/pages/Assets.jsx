@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import {
     Card, CardBody, Badge, Button, Table,
     Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input,
-    ButtonGroup, Row, Col, UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem,
-    Pagination, PaginationItem, PaginationLink, InputGroup, InputGroupText
+    Row, Col, UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem,
+    Pagination, PaginationItem, PaginationLink
 } from 'reactstrap';
-import { Plus, Monitor, Smartphone, HardDrive, User, Save, X, Edit, Trash2, Layers, Tag, Search, MoreVertical, ChevronDown, Printer, Download, Laptop, Keyboard } from 'lucide-react';
+import { Plus, Monitor, Smartphone, HardDrive, User, X, Edit, Trash2, Layers, Search, Printer, Download, Laptop } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -46,9 +46,9 @@ const Assets = () => {
     // Employee Search State
     const [employeeSearch, setEmployeeSearch] = useState('');
 
-    // Barcode Generation State
+    // QR Code Generation State
     const [selectedAssets, setSelectedAssets] = useState([]);
-    const [showBarcodeView, setShowBarcodeView] = useState(false);
+    const [showQRCodeView, setShowQRCodeView] = useState(false);
     const [showSelectionMode, setShowSelectionMode] = useState(false);
 
     // Reset page when filters change
@@ -302,7 +302,7 @@ const Assets = () => {
         }
     };
 
-    // Handle selecting/deselecting assets for barcode generation
+    // Handle selecting/deselecting assets for QR code generation
     const toggleAssetSelection = (assetId) => {
         setSelectedAssets(prev =>
             prev.includes(assetId)
@@ -326,16 +326,26 @@ const Assets = () => {
         }
     };
 
-    // Handle barcode generation
-    const handleGenerateBarcodes = () => {
+    // Handle QR code generation
+    const handleGenerateQRCodes = () => {
         if (selectedAssets.length > 0) {
-            setShowBarcodeView(true);
+            setShowQRCodeView(true);
         }
     };
 
     // Handle print
     const handlePrint = () => {
+        // Prevent duplicate print dialogs
+        if (window.isPrinting) return;
+        window.isPrinting = true;
+
+        // Trigger print immediately - QR codes are already rendered
         window.print();
+
+        // Reset flag after print dialog closes
+        setTimeout(() => {
+            window.isPrinting = false;
+        }, 1000);
     };
 
     const handleDownloadPDF = async () => {
@@ -409,7 +419,7 @@ const Assets = () => {
                                 }}
                             >
                                 <Printer size={18} />
-                                <span>Select for Barcodes</span>
+                                <span>Select for QR Code</span>
                             </Button>
                             <Button
                                 className="d-flex align-items-center gap-2 shadow-sm"
@@ -428,7 +438,7 @@ const Assets = () => {
                         <>
                             <Button
                                 className="d-flex align-items-center gap-2 shadow-sm"
-                                onClick={handleGenerateBarcodes}
+                                onClick={handleGenerateQRCodes}
                                 disabled={selectedAssets.length === 0}
                                 style={{
                                     background: selectedAssets.length > 0
@@ -440,7 +450,7 @@ const Assets = () => {
                                 }}
                             >
                                 <Printer size={18} />
-                                <span>Generate Barcodes {selectedAssets.length > 0 && `(${selectedAssets.length})`}</span>
+                                <span>Generate QR Codes {selectedAssets.length > 0 && `(${selectedAssets.length})`}</span>
                             </Button>
                             <Button
                                 color="light"
@@ -666,8 +676,8 @@ const Assets = () => {
                                                 <td className="border-bottom border-light py-3 text-center px-4">
                                                     <div className="d-flex justify-content-center">
                                                         <UncontrolledDropdown>
-                                                            <DropdownToggle color="light" size="sm" className="d-flex align-items-center gap-1 border">
-                                                                Actions <ChevronDown size={14} />
+                                                            <DropdownToggle caret color="light" size="sm" className="d-flex align-items-center gap-1 border">
+                                                                Actions
                                                             </DropdownToggle>
                                                             <DropdownMenu end
                                                                 style={{
@@ -953,7 +963,7 @@ const Assets = () => {
                                     </FormGroup>
                                 </Col>
                             )}
-                            {(isEditMode || formData.quantity === 1) && (
+                            {(isEditMode || formData.quantity >= 1) && (
                                 <Col md={!isEditMode ? 6 : 12}>
                                     <FormGroup>
                                         <Label for="assignedTo" className="fw-medium">Assign To <span className="text-muted small">(Optional)</span></Label>
@@ -964,9 +974,16 @@ const Assets = () => {
                                                 className="ps-5"
                                                 value={employeeSearch}
                                                 onChange={(e) => setEmployeeSearch(e.target.value)}
+                                                disabled={!isEditMode && formData.quantity > 1}
+                                                style={(!isEditMode && formData.quantity > 1) ? { backgroundColor: '#e9ecef', cursor: 'not-allowed' } : {}}
                                             />
                                         </div>
-                                        <div className="border rounded bg-white p-2" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                                        <div className={`border rounded p-2 ${(!isEditMode && formData.quantity > 1) ? 'bg-light' : 'bg-white'}`} style={{
+                                            maxHeight: '150px',
+                                            overflowY: 'auto',
+                                            opacity: (!isEditMode && formData.quantity > 1) ? 0.6 : 1,
+                                            pointerEvents: (!isEditMode && formData.quantity > 1) ? 'none' : 'auto'
+                                        }}>
                                             <div
                                                 className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${!formData.assignedTo ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
                                                 onClick={() => setFormData(prev => ({ ...prev, assignedTo: '', status: 'Available' }))}
@@ -1032,8 +1049,8 @@ const Assets = () => {
                 </ModalFooter>
             </Modal >
 
-            {/* Barcode Print View */}
-            {showBarcodeView && (
+            {/* QR Code Print View */}
+            {showQRCodeView && (
                 <div
                     style={{
                         position: 'fixed',
@@ -1079,7 +1096,7 @@ const Assets = () => {
                                     color="light"
                                     className="border"
                                     onClick={() => {
-                                        setShowBarcodeView(false);
+                                        setShowQRCodeView(false);
                                         setSelectedAssets([]);
                                     }}
                                 >
@@ -1089,84 +1106,90 @@ const Assets = () => {
                         </div>
                     </div>
 
-                    {/* Barcode Grid - Compact Label Format */}
+                    {/* QR Code Grid - Compact Label Format */}
                     <div
                         data-pdf-content
                         style={{
                             padding: '20px',
                             display: 'grid',
                             gridTemplateColumns: 'repeat(3, 1fr)',
-                            gap: '15px',
-                            pageBreakInside: 'avoid'
+                            gap: '15px'
                         }}
                     >
                         {getSelectedAssetObjects().map((asset, index) => {
+                            // Add page break after every 9 labels (3x3 grid per page)
+                            const shouldAddPageBreak = (index + 1) % 9 === 0 && index !== getSelectedAssetObjects().length - 1;
+
                             return (
-                                <div
-                                    key={asset.id}
-                                    style={{
-                                        border: '1px dashed #d1d5db',
-                                        borderRadius: '6px',
-                                        padding: '16px 12px',
-                                        textAlign: 'center',
-                                        backgroundColor: 'white',
-                                        pageBreakInside: 'avoid',
-                                        breakInside: 'avoid',
-                                        minHeight: '230px',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    {/* Company Logo and Property Text */}
+                                <React.Fragment key={asset.id}>
                                     <div
                                         style={{
-                                            width: '100%',
-                                            marginBottom: '12px',
+                                            border: '1px dashed #d1d5db',
+                                            borderRadius: '6px',
+                                            padding: '16px 12px',
+                                            textAlign: 'center',
+                                            backgroundColor: 'white',
+                                            pageBreakInside: 'avoid',
+                                            breakInside: 'avoid',
+                                            minHeight: '230px',
                                             display: 'flex',
                                             flexDirection: 'column',
+                                            justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            gap: '6px'
+                                            ...(shouldAddPageBreak && {
+                                                pageBreakAfter: 'always',
+                                                breakAfter: 'page'
+                                            })
                                         }}
                                     >
-                                        <img
-                                            src="/valus-logo.svg"
-                                            alt="Valus.io"
-                                            style={{
-                                                height: '24px',
-                                                width: 'auto',
-                                                objectFit: 'contain'
-                                            }}
-                                        />
+                                        {/* Company Logo and Property Text */}
                                         <div
                                             style={{
-                                                fontSize: '9px',
-                                                fontWeight: '600',
-                                                color: '#374151',
-                                                letterSpacing: '0.3px'
+                                                width: '100%',
+                                                marginBottom: '12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                gap: '6px'
                                             }}
                                         >
-                                            This is the Property of Valus.io
+                                            <img
+                                                src="/valus-logo.svg"
+                                                alt="Valus.io"
+                                                style={{
+                                                    height: '24px',
+                                                    width: 'auto',
+                                                    objectFit: 'contain'
+                                                }}
+                                            />
+                                            <div
+                                                style={{
+                                                    fontSize: '9px',
+                                                    fontWeight: '600',
+                                                    color: '#374151',
+                                                    letterSpacing: '0.3px'
+                                                }}
+                                            >
+                                                This is the Property of Valus.io
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    {/* QR Code */}
-                                    <div style={{ margin: '8px 0', display: 'flex', justifyContent: 'center' }}>
-                                        {(() => {
-                                            try {
-                                                if (!asset.assetTag) {
-                                                    return <div style={{ fontSize: '10px', color: '#ef4444' }}>No asset tag</div>;
-                                                }
+                                        {/* QR Code */}
+                                        <div style={{ margin: '8px 0', display: 'flex', justifyContent: 'center' }}>
+                                            {(() => {
+                                                try {
+                                                    if (!asset.assetTag) {
+                                                        return <div style={{ fontSize: '10px', color: '#ef4444' }}>No asset tag</div>;
+                                                    }
 
-                                                const assetTagString = String(asset.assetTag).trim();
+                                                    const assetTagString = String(asset.assetTag).trim();
 
-                                                if (assetTagString.length === 0) {
-                                                    return <div style={{ fontSize: '10px', color: '#ef4444' }}>Invalid tag</div>;
-                                                }
+                                                    if (assetTagString.length === 0) {
+                                                        return <div style={{ fontSize: '10px', color: '#ef4444' }}>Invalid tag</div>;
+                                                    }
 
-                                                // Create QR code data with asset information in readable format
-                                                const qrData = `========================
+                                                    // Create QR code data with asset information in readable format
+                                                    const qrData = `========================
    V A L U S . I O
  Property Information
 ========================
@@ -1187,38 +1210,39 @@ If found, please contact:
 
 Valus.io - All Rights Reserved`;
 
-                                                return (
-                                                    <QRCodeCanvas
-                                                        value={qrData}
-                                                        size={120}
-                                                        level="M"
-                                                        includeMargin={true}
-                                                    />
-                                                );
-                                            } catch (error) {
-                                                console.error('QR code rendering error for asset:', asset.assetTag, error);
-                                                return (
-                                                    <div style={{ fontSize: '9px', color: '#ef4444', padding: '5px' }}>
-                                                        Error: {asset.assetTag}
-                                                    </div>
-                                                );
-                                            }
-                                        })()}
-                                    </div>
+                                                    return (
+                                                        <QRCodeCanvas
+                                                            value={qrData}
+                                                            size={120}
+                                                            level="M"
+                                                            includeMargin={true}
+                                                        />
+                                                    );
+                                                } catch (error) {
+                                                    console.error('QR code rendering error for asset:', asset.assetTag, error);
+                                                    return (
+                                                        <div style={{ fontSize: '9px', color: '#ef4444', padding: '5px' }}>
+                                                            Error: {asset.assetTag}
+                                                        </div>
+                                                    );
+                                                }
+                                            })()}
+                                        </div>
 
-                                    {/* Asset Details */}
-                                    <div style={{ marginTop: '8px', borderTop: '1px solid #f3f4f6', paddingTop: '8px', width: '100%' }}>
-                                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#1f2937', marginBottom: '3px', lineHeight: '1.2' }}>
-                                            {asset.assetTag}
-                                        </div>
-                                        <div style={{ fontSize: '10px', fontWeight: '600', color: '#374151', marginBottom: '2px', lineHeight: '1.2' }}>
-                                            {asset.name.length > 20 ? asset.name.substring(0, 20) + '...' : asset.name}
-                                        </div>
-                                        <div style={{ fontSize: '8px', color: '#6b7280', lineHeight: '1.2' }}>
-                                            {asset.type}
+                                        {/* Asset Details */}
+                                        <div style={{ marginTop: '8px', borderTop: '1px solid #f3f4f6', paddingTop: '8px', width: '100%' }}>
+                                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#1f2937', marginBottom: '3px', lineHeight: '1.2' }}>
+                                                {asset.assetTag}
+                                            </div>
+                                            <div style={{ fontSize: '10px', fontWeight: '600', color: '#374151', marginBottom: '2px', lineHeight: '1.2' }}>
+                                                {asset.name.length > 20 ? asset.name.substring(0, 20) + '...' : asset.name}
+                                            </div>
+                                            <div style={{ fontSize: '8px', color: '#6b7280', lineHeight: '1.2' }}>
+                                                {asset.type}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </React.Fragment>
                             );
                         })}
                     </div>
@@ -1226,6 +1250,11 @@ Valus.io - All Rights Reserved`;
                     {/* Print Styles */}
                     <style>{`
                         @media print {
+                            * {
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            
                             body {
                                 margin: 0;
                                 padding: 0;
@@ -1240,10 +1269,36 @@ Valus.io - All Rights Reserved`;
                                 display: none !important;
                             }
                             
-                            /* Ensure labels don't break across pages */
-                            div[style*="breakInside"] {
-                                page-break-inside: avoid;
-                                break-inside: avoid;
+                            /* Grid container */
+                            div[data-pdf-content] {
+                                display: grid !important;
+                                grid-template-columns: repeat(3, 1fr) !important;
+                                gap: 15px !important;
+                                padding: 20px !important;
+                            }
+                            
+                            /* Ensure each label card doesn't break across pages */
+                            div[data-pdf-content] > div {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                                display: flex !important;
+                                flex-direction: column !important;
+                            }
+                            
+                            /* Ensure canvas elements (QR codes) are visible in print */
+                            canvas {
+                                max-width: 100% !important;
+                                height: auto !important;
+                                display: block !important;
+                                visibility: visible !important;
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            
+                            /* Ensure images render */
+                            img {
+                                max-width: 100% !important;
+                                display: block !important;
                             }
                         }
                     `}</style>

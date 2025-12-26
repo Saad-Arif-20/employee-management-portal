@@ -6,7 +6,7 @@ import {
     UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem,
     Pagination, PaginationItem, PaginationLink, UncontrolledTooltip
 } from 'reactstrap';
-import { Search, Plus, Edit, Trash2, User, Users, Save, X, Check, Calendar, PauseCircle, PlayCircle, MoreVertical, ChevronDown, Info } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, User, Save, Calendar, ChevronDown } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 import DateRangeFilter from '../components/DateRangeFilter';
 
@@ -90,7 +90,6 @@ const EmployeeList = () => {
 
     const handleNewClick = () => {
         setFormData({
-            employeeId: '',
             name: '',
             email: '',
             joinDate: '',
@@ -142,22 +141,6 @@ const EmployeeList = () => {
         // Full validation for new employee enrollment
         const joinYear = new Date(formData.joinDate).getFullYear();
         const today = new Date().toISOString().split('T')[0];
-
-        if (!formData.employeeId) {
-            newErrors.employeeId = 'Employee ID is required';
-        } else {
-            // Check if it is a positive number
-            if (isNaN(formData.employeeId) || Number(formData.employeeId) <= 0) {
-                newErrors.employeeId = 'Employee ID must be a positive number';
-            } else {
-                // Check for duplicate Employee ID
-                const duplicateId = employees.find(e =>
-                    e.employeeId.toString() === formData.employeeId.toString() &&
-                    (!isEditMode || e.id.toString() !== editingEmployeeId?.toString())
-                );
-                if (duplicateId) newErrors.employeeId = 'Employee ID already exists';
-            }
-        }
 
         if (!formData.name) newErrors.name = 'Full Name is required';
 
@@ -252,43 +235,7 @@ const EmployeeList = () => {
         });
     };
 
-    // Subscription Management Handlers
-    const handleToggleSubscriptionStatus = (subscriptionId, employeeId) => {
-        const subscription = subscriptions.find(sub => sub.id === subscriptionId);
-        if (!subscription) return;
 
-        const updatedAssignedTo = subscription.assignedTo.map(assignment => {
-            const assignmentEmployeeId = typeof assignment === 'string' ? assignment : assignment.employeeId;
-
-            if (assignmentEmployeeId === employeeId) {
-                // Toggle status for this specific employee
-                if (typeof assignment === 'string') {
-                    return { employeeId: assignment, date: new Date().toISOString().split('T')[0], status: 'Paused' };
-                } else {
-                    return {
-                        ...assignment,
-                        status: assignment.status === 'Paused' ? 'Active' : 'Paused'
-                    };
-                }
-            }
-            return assignment;
-        });
-
-        updateSubscription({ ...subscription, assignedTo: updatedAssignedTo });
-    };
-
-    const handleRemoveSubscription = (subscriptionId, employeeId) => {
-        const subscription = subscriptions.find(sub => sub.id === subscriptionId);
-        if (!subscription) return;
-
-        // Remove only this employee's assignment
-        const updatedAssignedTo = subscription.assignedTo.filter(assignment => {
-            const assignmentEmployeeId = typeof assignment === 'string' ? assignment : assignment.employeeId;
-            return assignmentEmployeeId !== employeeId;
-        });
-
-        updateSubscription({ ...subscription, assignedTo: updatedAssignedTo });
-    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -302,7 +249,24 @@ const EmployeeList = () => {
             if (isEditMode) {
                 updateEmployee(editingEmployeeId, submissionData);
             } else {
-                addEmployee(submissionData);
+                // Generate unique 6-digit employee ID
+                const generateUniqueEmployeeId = () => {
+                    const existingIds = employees.map(emp => emp.employeeId?.toString());
+                    let newId;
+                    let attempts = 0;
+                    const maxAttempts = 1000; // Prevent infinite loop
+
+                    do {
+                        // Generate random 6-digit number (100000 to 999999)
+                        newId = Math.floor(100000 + Math.random() * 900000).toString();
+                        attempts++;
+                    } while (existingIds.includes(newId) && attempts < maxAttempts);
+
+                    return newId;
+                };
+
+                const employeeId = generateUniqueEmployeeId();
+                addEmployee({ ...submissionData, employeeId });
             }
             toggleModal();
         }
@@ -721,21 +685,7 @@ const EmployeeList = () => {
                             ) : (
                                 <>
                                     <Row>
-                                        <Col md={6}>
-                                            <FormGroup>
-                                                <Label for="employeeId" className="fw-medium">Employee ID</Label>
-                                                <Input
-                                                    id="employeeId"
-                                                    name="employeeId"
-                                                    placeholder="e.g. 1001"
-                                                    value={formData.employeeId}
-                                                    onChange={handleChange}
-                                                    invalid={!!errors.employeeId}
-                                                />
-                                                {errors.employeeId && <div className="invalid-feedback d-block">{errors.employeeId}</div>}
-                                            </FormGroup>
-                                        </Col>
-                                        <Col md={6}>
+                                        <Col md={12}>
                                             <FormGroup>
                                                 <Label for="name" className="fw-medium">Full Name</Label>
                                                 <Input
@@ -881,7 +831,7 @@ const EmployeeList = () => {
                                                                         className={`d-flex align-items-center justify-content-center rounded border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
                                                                         style={{ width: '20px', height: '20px', minWidth: '20px' }}
                                                                     >
-                                                                        {isSelected && <Check size={14} className="text-white" />}
+                                                                        {isSelected && <div className="bg-primary rounded-circle p-1"></div>}
                                                                     </div>
                                                                     <div>
                                                                         <div className="fw-medium text-dark">{emp.name}</div>
@@ -926,7 +876,7 @@ const EmployeeList = () => {
                                                             className={`d-flex align-items-center justify-content-center rounded border me-3 ${!formData.reportingTo ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
                                                             style={{ width: '20px', height: '20px', minWidth: '20px' }}
                                                         >
-                                                            {!formData.reportingTo && <Check size={14} className="text-white" />}
+                                                            {!formData.reportingTo && <div className="bg-primary rounded-circle p-1"></div>}
                                                         </div>
                                                         <div>
                                                             <div className="fw-medium text-dark">No Manager</div>
@@ -951,7 +901,7 @@ const EmployeeList = () => {
                                                                         className={`d-flex align-items-center justify-content-center rounded border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
                                                                         style={{ width: '20px', height: '20px', minWidth: '20px' }}
                                                                     >
-                                                                        {isSelected && <Check size={14} className="text-white" />}
+                                                                        {isSelected && <div className="bg-primary rounded-circle p-1"></div>}
                                                                     </div>
                                                                     <div>
                                                                         <div className="fw-medium text-dark">{emp.name}</div>
@@ -977,7 +927,6 @@ const EmployeeList = () => {
                                     onClick={toggleModal}
                                     type="button"
                                 >
-                                    <X size={18} />
                                     <span>Cancel</span>
                                 </Button>
                                 <Button

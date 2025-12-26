@@ -2,9 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { DateRange } from 'react-date-range';
 import { format } from 'date-fns';
 import { X, Calendar, Edit2 } from 'lucide-react';
-import { Button } from 'reactstrap';
-import 'react-date-range/dist/styles.css'; // main style file
-import 'react-date-range/dist/theme/default.css'; // theme css file
+import 'react-date-range/dist/styles.css';
+import 'react-date-range/dist/theme/default.css';
 
 const DateRangeFilter = ({ startDate, endDate, onChange, bgColor = 'bg-light', showBorder = false }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -101,7 +100,6 @@ const DateRangeFilter = ({ startDate, endDate, onChange, bgColor = 'bg-light', s
                         width: '350px'
                     }}
                 >
-                    {/* Header */}
                     <div className="bg-primary p-3 text-white">
                         <div className="d-flex justify-content-between align-items-center mb-3">
                             <X
@@ -129,15 +127,14 @@ const DateRangeFilter = ({ startDate, endDate, onChange, bgColor = 'bg-light', s
                         </div>
                     </div>
 
-                    {/* Calendar */}
                     <div className="p-0">
                         <DateRange
                             editableDateInputs={true}
                             onChange={handleSelect}
                             moveRangeOnFirstSelection={false}
                             ranges={range}
-                            rangeColors={['#4f46e5']} // Primary color
-                            showDateDisplay={false} // We have our own custom header
+                            rangeColors={['#4f46e5']}
+                            showDateDisplay={false}
                             months={1}
                             direction="horizontal"
                             className="w-100 border-0"

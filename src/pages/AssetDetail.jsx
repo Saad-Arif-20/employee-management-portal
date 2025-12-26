@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Card, CardBody, Badge, Button, Row, Col,
-    Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input
+    Modal, ModalHeader, ModalBody, ModalFooter, FormGroup, Label, Input
 } from 'reactstrap';
-import { ArrowLeft, Monitor, Smartphone, HardDrive, Layers, User, Edit, Calendar, DollarSign, Tag, AlertCircle, Package } from 'lucide-react';
+import { ArrowLeft, Monitor, Smartphone, HardDrive, Layers, User, Edit, DollarSign, Tag, AlertCircle, Package } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 
 const AssetDetail = () => {
     const { assetTag } = useParams();
     const navigate = useNavigate();
-    const { assets, employees, updateAsset } = useGlobal();
+    const { assets, employees } = useGlobal();
 
     // Find asset by tag
     const asset = assets.find(a => a.assetTag === assetTag);

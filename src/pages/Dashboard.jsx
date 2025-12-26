@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Row, Col, Card, CardBody, Badge, Progress, Button } from 'reactstrap';
-import { Users, Briefcase, CreditCard, Monitor, Building2, Calendar, CheckCircle, Clock, ArrowRight, DollarSign, TrendingUp, TrendingDown, UserMinus, AlertCircle } from 'lucide-react';
+import { Users, Briefcase, CreditCard, Building2, Clock, ArrowRight, DollarSign, TrendingUp, TrendingDown, UserMinus, AlertCircle } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 import {
     Chart as ChartJS,
@@ -1278,7 +1278,7 @@ const Dashboard = () => {
                                     ...projectChartData,
                                     datasets: [{
                                         ...projectChartData.datasets[0],
-                                        backgroundColor: ['#0d3b2e', '#14b8a6', '#fbbf24', '#10b981'],
+                                        backgroundColor: ['#10b981', '#81C14B', '#0d3b2e', '#d6a323'],
                                         borderRadius: 8,
                                         barThickness: 40
                                     }]

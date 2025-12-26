@@ -652,17 +652,15 @@ const EmployeeProfile = () => {
                                             }}>
                                                 {employeeProjects.filter(p => p.status === 'In Progress').length} In Progress • {employeeProjects.filter(p => p.status === 'Planning').length} Planning
                                             </span>
-                                            {employeeProjects.filter(p => p.status === 'On Hold').length > 0 && (
-                                                <div className="mt-1">
-                                                    <span className="text-white" style={{
-                                                        fontSize: '1.1rem',
-                                                        fontWeight: '600',
-                                                        opacity: 0.9
-                                                    }}>
-                                                        {employeeProjects.filter(p => p.status === 'On Hold').length} On Hold
-                                                    </span>
-                                                </div>
-                                            )}
+                                            <div className="mt-1">
+                                                <span className="text-white" style={{
+                                                    fontSize: '1.1rem',
+                                                    fontWeight: '600',
+                                                    opacity: 0.9
+                                                }}>
+                                                    {employeeProjects.filter(p => p.status === 'On Hold').length} On Hold
+                                                </span>
+                                            </div>
                                         </div>
                                     </CardBody>
                                 </Card>
@@ -693,10 +691,7 @@ const EmployeeProfile = () => {
                                                 fontWeight: '600',
                                                 opacity: 0.9
                                             }}>
-                                                {displaySubscriptions.filter(sub => sub.employeeStatus === 'Active').length} Active
-                                                {displaySubscriptions.filter(sub => sub.employeeStatus === 'Paused').length > 0 &&
-                                                    ` • ${displaySubscriptions.filter(sub => sub.employeeStatus === 'Paused').length} Paused`
-                                                }
+                                                {displaySubscriptions.filter(sub => sub.employeeStatus === 'Active').length} Active • {displaySubscriptions.filter(sub => sub.employeeStatus === 'Paused').length} Paused
                                             </span>
                                         </div>
                                     </CardBody>
@@ -1164,11 +1159,12 @@ const EmployeeProfile = () => {
                                     <UncontrolledDropdown>
                                         <DropdownToggle
                                             caret
-                                            className="w-100 text-start d-flex justify-content-between align-items-center border-light bg-light"
+                                            className="w-100 text-start d-flex justify-content-between align-items-center bg-white"
                                             style={{
                                                 borderRadius: '0.375rem',
                                                 padding: '0.375rem 0.75rem',
-                                                color: '#6c757d'
+                                                color: '#212529',
+                                                border: '1px solid #ced4da'
                                             }}
                                         >
                                             {subFormData.status || 'Active'}
@@ -1258,11 +1254,12 @@ const EmployeeProfile = () => {
                                     <UncontrolledDropdown>
                                         <DropdownToggle
                                             caret
-                                            className="w-100 text-start d-flex justify-content-between align-items-center border-light bg-light"
+                                            className="w-100 text-start d-flex justify-content-between align-items-center bg-white"
                                             style={{
                                                 borderRadius: '0.375rem',
                                                 padding: '0.375rem 0.75rem',
-                                                color: '#6c757d'
+                                                color: '#212529',
+                                                border: '1px solid #ced4da'
                                             }}
                                         >
                                             {formData.department || 'Select Department'}
@@ -1295,11 +1292,12 @@ const EmployeeProfile = () => {
                                     <UncontrolledDropdown>
                                         <DropdownToggle
                                             caret
-                                            className="w-100 text-start d-flex justify-content-between align-items-center border-light bg-light"
+                                            className="w-100 text-start d-flex justify-content-between align-items-center bg-white"
                                             style={{
                                                 borderRadius: '0.375rem',
                                                 padding: '0.375rem 0.75rem',
-                                                color: '#6c757d'
+                                                color: '#212529',
+                                                border: '1px solid #ced4da'
                                             }}
                                         >
                                             {(() => {
@@ -1340,11 +1338,12 @@ const EmployeeProfile = () => {
                                         <DropdownToggle
                                             caret
                                             disabled={hasActiveProjects}
-                                            className="w-100 text-start d-flex justify-content-between align-items-center border-light bg-light"
+                                            className="w-100 text-start d-flex justify-content-between align-items-center bg-white"
                                             style={{
                                                 borderRadius: '0.375rem',
                                                 padding: '0.375rem 0.75rem',
-                                                color: '#6c757d'
+                                                color: '#212529',
+                                                border: '1px solid #ced4da'
                                             }}
                                         >
                                             {formData.status || 'Active'}

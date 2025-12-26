@@ -1,4 +1,3 @@
-// Projects.jsx - Updated with validation to prevent inactive/on-leave employees from being selected as lead or team members
 import React, { useState } from 'react';
 import {
     Card,
@@ -20,10 +19,9 @@ import {
     Label,
     Input
 } from 'reactstrap';
-import { Plus, MoreVertical, Calendar, Clock, User, Users, Save, X, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, MoreVertical, Calendar, Clock, Users, Save, X, Edit, Trash2, Search } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 
-// Team Member Avatar Component - Extracted to fix hooks issue
 const TeamMemberAvatar = ({ member, idx }) => {
     const [showTooltip, setShowTooltip] = useState(false);
 
@@ -93,11 +91,10 @@ const TeamMemberAvatar = ({ member, idx }) => {
 const Projects = () => {
     const { projects, removeProject, addProject, updateProject, employees } = useGlobal();
 
-    // Modal & Form State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editingProjectId, setEditingProjectId] = useState(null);
-    const [originalStartDate, setOriginalStartDate] = useState(''); // Track original start date for edit validation
+    const [originalStartDate, setOriginalStartDate] = useState('');
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -109,20 +106,15 @@ const Projects = () => {
         completedDate: null
     });
     const [errors, setErrors] = useState({});
-    // Warning Modal for inactive/on-leave selections
     const [warningModalOpen, setWarningModalOpen] = useState(false);
     const [warningMessage, setWarningMessage] = useState('');
-    // Search state
     const [leadSearchTerm, setLeadSearchTerm] = useState('');
     const [teamSearchTerm, setTeamSearchTerm] = useState('');
-    // Track original team members for sorting (prevents re-sort during selection)
     const [originalTeamMembers, setOriginalTeamMembers] = useState([]);
 
-    // Delete Confirmation Modal
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState(null);
 
-    // Filter states
     const [statusFilter, setStatusFilter] = useState('All');
     const [deadlineFilter, setDeadlineFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
@@ -141,13 +133,11 @@ const Projects = () => {
     };
 
     const toggleModal = () => {
-        const willClose = isModalOpen; // Capture current state before toggle
+        const willClose = isModalOpen;
         setIsModalOpen(!isModalOpen);
         setErrors({});
-        // Reset search terms when closing modal
         setLeadSearchTerm('');
         setTeamSearchTerm('');
-        // Only reset originalTeamMembers when CLOSING the modal
         if (willClose) {
             setOriginalTeamMembers([]);
         }
@@ -166,8 +156,8 @@ const Projects = () => {
         });
         setIsEditMode(false);
         setEditingProjectId(null);
-        setOriginalStartDate(''); // Reset original start date
-        setOriginalTeamMembers([]); // Reset original team members
+        setOriginalStartDate('');
+        setOriginalTeamMembers([]);
         toggleModal();
     };
 
@@ -184,8 +174,8 @@ const Projects = () => {
         });
         setIsEditMode(true);
         setEditingProjectId(project.id);
-        setOriginalStartDate(project.startDate || ''); // Store original start date
-        setOriginalTeamMembers(project.team || []); // Store original team members
+        setOriginalStartDate(project.startDate || '');
+        setOriginalTeamMembers(project.team || []);
         toggleModal();
     };
 
@@ -245,7 +235,6 @@ const Projects = () => {
     };
 
     const toggleTeamMember = (employee) => {
-        // Prevent adding inactive or on‑leave employees
         if (employee.status !== 'Active') {
             setWarningMessage(`${employee.name} is ${employee.status} and cannot be added to the project team.`);
             setWarningModalOpen(true);
@@ -266,7 +255,6 @@ const Projects = () => {
         if (validate()) {
             const submissionData = { ...formData };
 
-            // Handle completed date
             if (submissionData.status === 'Completed') {
                 if (!submissionData.completedDate) {
                     submissionData.completedDate = new Date().toISOString();
@@ -284,7 +272,6 @@ const Projects = () => {
         }
     };
 
-    // Date constants for input attributes (using local timezone)
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -406,7 +393,6 @@ const Projects = () => {
 
             <Row className="g-4">
                 {projects.filter(project => {
-                    // Filter by search query
                     if (searchQuery !== '') {
                         const query = searchQuery.toLowerCase();
                         const titleMatch = project.title.toLowerCase().includes(query);
@@ -415,12 +401,10 @@ const Projects = () => {
                         }
                     }
 
-                    // Filter by status
                     if (statusFilter !== 'All' && project.status !== statusFilter) {
                         return false;
                     }
 
-                    // Filter by deadline
                     if (deadlineFilter !== 'All') {
                         const deadline = new Date(project.deadline);
                         const today = new Date();
@@ -436,12 +420,10 @@ const Projects = () => {
 
                     return true;
                 }).map(project => {
-                    // Calculate time remaining
                     const deadline = new Date(project.deadline);
                     const today = new Date();
                     const daysRemaining = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
 
-                    // Status-based styling with bold gradient backgrounds
                     const statusConfig = {
                         'In Progress': {
                             color: '#ffffff',
@@ -487,7 +469,6 @@ const Projects = () => {
                                     position: 'relative'
                                 }}
                             >
-                                {/* Decorative gradient accent */}
                                 <div style={{
                                     position: 'absolute',
                                     top: 0,
@@ -500,7 +481,6 @@ const Projects = () => {
                                 }} />
 
                                 <CardBody className="d-flex flex-column position-relative" style={{ zIndex: 1 }}>
-                                    {/* Header with status and actions */}
                                     <div className="d-flex justify-content-between align-items-start mb-3">
                                         <div className="d-flex gap-2 flex-wrap">
                                             <span
@@ -971,12 +951,11 @@ const Projects = () => {
                                                     emp.role.toLowerCase().includes(teamSearchTerm.toLowerCase());
                                             })
                                             .sort((a, b) => {
-                                                // Sort based on ORIGINAL team members (when modal opened), not current selection
                                                 const aSelected = originalTeamMembers.includes(a.name);
                                                 const bSelected = originalTeamMembers.includes(b.name);
                                                 if (aSelected && !bSelected) return -1;
                                                 if (!aSelected && bSelected) return 1;
-                                                return 0; // Keep original order for same selection status
+                                                return 0;
                                             })
                                             .map(emp => {
                                                 const isSelected = formData.team.includes(emp.name);
