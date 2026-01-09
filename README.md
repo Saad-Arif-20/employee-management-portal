@@ -1,34 +1,56 @@
 # CoreView (React)
 
-The frontend dashboard for the Employee Management Portal, built with **React** and **Vite**.
+## Project Overview
 
-## 🚀 How to Run
+CoreView is a comprehensive Employee Management dashboard designed to streamline organizational resources. It serves as the frontend interface for tracking employees, managing projects, monitoring assets, and handling software subscriptions. The application is built using React 19 and utilizes Vite for a fast and modern development experience.
 
-1.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+The dashboard connects to a separate Node.js backend service to fetch and persist data.
 
-2.  **Start the dev server:**
-    ```bash
-    npm run dev
-    ```
-    The app will open at `http://localhost:5173`.
+## Installation and Setup
 
-## 🔌 Backend Connection
+Follow these steps to get the application running on your local machine.
 
-This frontend expects the **CoreView Node** backend to be running on port `5000`.
--   **API URL:** Configured in `src/config/api.js` (defaults to `http://localhost:5000/api`).
--   To change this, update your `.env` file.
+### 1. Install Dependencies
+Navigate to the project root directory and install the required packages:
 
-## 🛠️ Stack
+```bash
+npm install
+```
 
--   **Framework:** React 19 + Vite
--   **Styling:** Bootstrap (Reactstrap) + Custom CSS
--   **State:** Context API
--   **Charts:** Recharts
+### 2. Start the Development Server
+Run the following command to start the local development server:
 
-## 👤 Login Credentials (Dev)
+```bash
+npm run dev
+```
 
--   **Email:** `admin@company.com`
--   **Password:** `admin123`
+The application will launch in your default browser at `http://localhost:5173`.
+
+## Configuration
+
+### Backend Connection
+This frontend application relies on the CoreView Node backend being active. By default, it expects the backend API to be running at `http://localhost:5000/api`.
+
+If your backend is running on a different port or server, you can configure this in your environment variables or update the configuration file located at `src/config/api.js`.
+
+### Login Credentials
+For development purposes, the system is pre-seeded with an administrator account:
+- **Email:** admin@company.com
+- **Password:** admin123
+
+## Key Features
+
+- **Dashboard**: Provides a high-level overview of company metrics, including total employees, active projects, and recent activities.
+- **Employee Directory**: Allows for viewing, searching, and managing employee profiles. Supports status changes and role management.
+- **Project Management**: A Kanban-style interface for tracking project progress, assigning teams, and managing deadlines.
+- **Asset Tracking**: Inventory management system for company hardware and devices.
+- **Subscription Manager**: Tracks software licenses, costs, and renewal dates.
+
+## Technology Stack
+
+- **Framework**: React 19
+- **Build Tool**: Vite
+- **Styling**: Bootstrap 5 (via Reactstrap) and custom CSS
+- **Routing**: React Router DOM
+- **Charts**: Recharts
+- **HTTP Client**: Axios
