@@ -36,7 +36,7 @@ If your backend is running on a different port or server, you can configure this
 ### Login Credentials
 For development purposes, the system is pre-seeded with an administrator account:
 - **Email:** admin@company.com
-- **Password:** admin123
+- **Password:** Admin123
 
 ## Key Features
 
