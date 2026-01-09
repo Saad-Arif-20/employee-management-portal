@@ -1,196 +1,148 @@
 # Employee Management Portal
 
-A comprehensive React-based employee management system for managing employees, projects, subscriptions, and assets.
+A full-stack web application for managing employees, projects, assets, and subscriptions.
 
-## Introduction
-
-The Employee Management Portal is a modern web application built with React and Vite that provides a centralized platform for managing organizational resources. The system allows administrators to:
-
-- **Manage Employees**: Track employee information, roles, departments, and reporting structures
-- **Oversee Projects**: Monitor project status, deadlines, team assignments, and progress
-- **Handle Subscriptions**: Manage software subscriptions and service licenses
-- **Track Assets**: Maintain inventory of company assets including laptops, monitors, and other equipment
-
-The application features a clean, modern UI with real-time data updates, comprehensive filtering and search capabilities, and detailed analytics dashboards.
-
-## Getting Started
-
-Follow these steps to get the Employee Management Portal running on your local machine.
+## 🚀 Quick Start
 
 ### Prerequisites
+- Node.js (v16 or higher)
+- MongoDB (v5 or higher)
 
-- **Node.js**: Version 16.x or higher
-- **npm**: Version 8.x or higher (comes with Node.js)
+### Installation
 
-### Installation Process
-
-1. **Clone the repository**
+1. **Install dependencies:**
    ```bash
-   git clone https://dev.azure.com/valus-io/v-web-team-projects/_git/coreview-react
-   cd coreview-react
-   ```
-
-2. **Install dependencies**
-   ```bash
+   # Install frontend dependencies
+   npm install
+   
+   # Install backend dependencies
+   cd server
    npm install
    ```
 
-3. **Start the development server**
+2. **Configure environment:**
    ```bash
+   cd server
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+3. **Start MongoDB:**
+   ```bash
+   # Windows
+   mongod --dbpath "%USERPROFILE%\mongodb-data"
+   
+   # Mac/Linux
+   mongod --dbpath ~/mongodb-data
+   ```
+
+4. **Seed the database:**
+   ```bash
+   cd server
+   npm run seed
+   ```
+
+5. **Start the application:**
+   ```bash
+   # Terminal 1: Start backend
+   cd server
+   npm run dev
+   
+   # Terminal 2: Start frontend
    npm run dev
    ```
 
-4. **Access the application**
-   - Open your browser and navigate to: `http://localhost:5173`
-   - The application will automatically reload when you make changes
+6. **Access the application:**
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:5000
 
-### Software Dependencies
+### Default Login
+- **Email:** admin@company.com
+- **Password:** admin123
 
-The project uses the following key dependencies:
-
-- **React 18.3.1**: UI framework
-- **React Router DOM 7.1.1**: Client-side routing
-- **Reactstrap 9.2.3**: Bootstrap components for React
-- **Bootstrap 5.3.3**: CSS framework
-- **Lucide React 0.469.0**: Icon library
-- **Chart.js 4.4.7**: Data visualization
-- **React Date Range 2.0.1**: Date picker component
-- **QRCode.react 4.1.0**: QR code generation
-- **jsPDF 2.5.2**: PDF generation
-- **html2canvas 1.4.1**: Screenshot functionality
-
-## Build and Test
-
-### Development Build
-
-Run the development server with hot-reload:
-
-```bash
-npm run dev
-```
-
-The application will be available at `http://localhost:5173`
-
-### Production Build
-
-Create an optimized production build:
-
-```bash
-npm run build
-```
-
-This will generate a `dist` folder with optimized static files ready for deployment.
-
-### Preview Production Build
-
-Test the production build locally:
-
-```bash
-npm run preview
-```
-
-### Code Linting
-
-Check code quality and formatting:
-
-```bash
-npm run lint
-```
-
-### Running Tests
-
-Currently, the project uses ESLint for code quality checks. To run linting:
-
-```bash
-npm run lint
-```
-
-## Project Structure
+## 📁 Project Structure
 
 ```
-coreview-react/
-├── src/
-│   ├── components/        # Reusable UI components
-│   │   ├── Layout.jsx     # Main layout with sidebar and header
-│   │   └── DateRangeFilter.jsx
-│   ├── contexts/          # React context providers
-│   │   ├── GlobalContext.jsx  # Global state management
-│   │   └── mockData.js        # Mock data for development
-│   ├── pages/             # Main application pages
-│   │   ├── Dashboard.jsx
-│   │   ├── EmployeeList.jsx
-│   │   ├── EmployeeProfile.jsx
-│   │   ├── Projects.jsx
-│   │   ├── Subscriptions.jsx
-│   │   ├── Assets.jsx
-│   │   └── AssetDetail.jsx
-│   ├── App.jsx            # Main application component
-│   ├── main.jsx           # Application entry point
-│   └── index.css          # Global styles
-├── public/                # Static assets
-├── index.html             # HTML template
-├── vite.config.js         # Vite configuration
-└── package.json           # Project dependencies
-
+employee-management-portal/
+├── src/                    # Frontend source code
+│   ├── components/         # React components
+│   ├── pages/             # Page components
+│   ├── contexts/          # React contexts
+│   └── services/          # API services
+├── server/                # Backend source code
+│   ├── config/           # Configuration files
+│   ├── controllers/      # Route controllers
+│   ├── models/           # Database models
+│   ├── routes/           # API routes
+│   └── middleware/       # Custom middleware
+├── public/               # Static assets
+├── extras/               # Documentation & test scripts
+└── package.json          # Frontend dependencies
 ```
 
-## Features
+## 🔧 Available Scripts
 
-### Dashboard
-- Real-time metrics and analytics
-- Employee growth trends
-- Project status overview
-- Subscription and asset summaries
-- Interactive charts and visualizations
+### Frontend
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
 
-### Employee Management
-- Add, edit, and manage employee records
-- Track employee status (Active, On Leave, Inactive)
-- Manage reporting structures and hierarchies
-- Assign employees to projects and subscriptions
-- Filter and search capabilities
+### Backend
+- `npm run dev` - Start development server with auto-reload
+- `npm start` - Start production server
+- `npm run seed` - Seed database with sample data
 
-### Project Management
-- Create and track projects
-- Assign project leads and team members
-- Monitor project status and deadlines
-- View project timelines and progress
-- Filter by status and deadline
+## 📚 Features
 
-### Subscription Tracking
-- Manage software and service subscriptions
-- Track subscription costs and renewal dates
-- Assign subscriptions to employees and projects
-- Monitor active vs. paused subscriptions
+- **Employee Management** - Add, edit, view, and manage employee records
+- **Project Tracking** - Create and monitor projects with team assignments
+- **Asset Management** - Track company assets and assignments
+- **Subscription Management** - Manage software licenses and subscriptions
+- **Dashboard Analytics** - View key metrics and statistics
+- **Role-Based Access** - Admin, Manager, and User roles
+- **Authentication** - Secure JWT-based authentication
 
-### Asset Inventory
-- Track company assets (laptops, monitors, etc.)
-- Generate QR codes for asset tracking
-- Assign assets to employees
-- Monitor asset status and availability
-- Print asset labels with QR codes
+## 🛠️ Technology Stack
 
-## Technology Stack
+### Frontend
+- React 19
+- React Router
+- Bootstrap & Reactstrap
+- Axios
+- Chart.js & Recharts
+- Vite
 
-- **Frontend Framework**: React 18
-- **Build Tool**: Vite
-- **Routing**: React Router DOM
-- **UI Components**: Reactstrap (Bootstrap 5)
-- **Icons**: Lucide React
-- **Charts**: Chart.js with react-chartjs-2
-- **State Management**: React Context API
-- **Data Persistence**: LocalStorage
-- **Styling**: CSS with Bootstrap
+### Backend
+- Node.js
+- Express
+- MongoDB & Mongoose
+- JWT Authentication
+- bcryptjs
 
-## Contributing
+## 📖 Additional Documentation
 
-This project is maintained by the Valus.io team. For contributions or issues, please contact the development team.
+For detailed guides and documentation, see the `extras/documentation/` folder:
+- Architecture overview
+- Backend integration guide
+- Debugging guide
+- Git workflow guide
+- And more...
 
-## License
+## 🧪 Testing
 
-This project is proprietary and confidential. Unauthorized copying or distribution is prohibited.
+Test scripts are available in `extras/test-scripts/`:
+- `test-connection.js` - Test MongoDB connection
+- `test-api.js` - Test API endpoints
+
+## 📄 License
+
+ISC
+
+## 🤝 Contributing
+
+This is a private project. For questions or issues, contact the development team.
 
 ---
 
-**Developed by**: Valus.io Development Team  
-**Last Updated**: December 2025
+**Version:** 1.0.0  
+**Last Updated:** January 2026

@@ -9,7 +9,7 @@ const EmployeeProfile = () => {
     const navigate = useNavigate();
     const { employees, projects, assets, subscriptions, updateEmployee, updateSubscription, updateAsset, updateProject } = useGlobal();
 
-    const employee = (employees || []).find(emp => emp.id === parseInt(id));
+    const employee = (employees || []).find(emp => emp.id.toString() === id.toString());
 
     const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
     const [subModalOpen, setSubModalOpen] = useState(false);
@@ -128,12 +128,28 @@ const EmployeeProfile = () => {
             if (!Array.isArray(newAssignedTo)) newAssignedTo = [];
 
             const updatedAssignedTo = newAssignedTo.map(item => {
-                const isMatch = (typeof item === 'object' && item.employeeId?.toString() === employee.id.toString()) ||
-                    (item?.toString() === employee.id.toString());
+                // Check for match using both employeeId and employee fields
+                const isMatch = (typeof item === 'object' && item !== null) && (
+                    (item.employeeId && item.employeeId.toString() === employee.id.toString()) ||
+                    (item.employee && (
+                        typeof item.employee === 'object'
+                            ? (item.employee.id === employee.id.toString() || item.employee._id === employee.id.toString())
+                            : item.employee.toString() === employee.id.toString()
+                    ))
+                ) || (item?.toString() === employee.id.toString());
 
                 if (isMatch) {
+                    // Preserve the original field structure (employee vs employeeId)
+                    if (typeof item === 'object' && item !== null) {
+                        return {
+                            ...item,
+                            employee: item.employee || employee.id.toString(),
+                            status: subFormData.status,
+                            startDate: subFormData.startDate
+                        };
+                    }
                     return {
-                        employeeId: employee.id.toString(),
+                        employee: employee.id.toString(),
                         status: subFormData.status,
                         startDate: subFormData.startDate
                     };
@@ -233,7 +249,7 @@ const EmployeeProfile = () => {
         // Find the project and remove the employee from the team
         const updatedTeam = selectedProject.team.filter(member => {
             if (typeof member === 'string') {
-                return member !== employee.name;
+                return member !== employee.name && member !== employee.id.toString();
             }
             return member.employeeId !== employee.id &&
                 member.employeeId !== employee.id.toString() &&
@@ -317,7 +333,8 @@ const EmployeeProfile = () => {
     const getEmployeeProjects = () => {
         return projects.filter(project => {
             // Check if employee is the project lead
-            if (project.lead === employee.name) {
+            // Compare against both name and ID (as string)
+            if (project.lead === employee.name || project.lead === employee.id.toString()) {
                 return true;
             }
 
@@ -326,9 +343,9 @@ const EmployeeProfile = () => {
                 return false;
             }
             return project.team.some(member => {
-                // If member is a string, compare with employee name
+                // If member is a string, compare with employee name or ID
                 if (typeof member === 'string') {
-                    return member === employee.name;
+                    return member === employee.name || member === employee.id.toString();
                 }
                 // If member is an object, compare with employeeId or name
                 return member.employeeId === employee.id ||
@@ -347,7 +364,7 @@ const EmployeeProfile = () => {
 
         // Check specific role in team array
         const member = project.team.find(m =>
-            (typeof m === 'string' && m === employee.name) ||
+            (typeof m === 'string' && (m === employee.name || m === employee.id.toString())) ||
             (typeof m === 'object' && (m.employeeId === employee.id || m.employeeId === employee.id.toString() || m.employeeName === employee.name))
         );
 
@@ -408,10 +425,15 @@ const EmployeeProfile = () => {
         return subscriptions.filter(sub => {
             // If assignedTo is an array (of objects or IDs)
             if (Array.isArray(sub.assignedTo)) {
-                // Check for objects with employeeId or direct ID strings
+                // Check for objects with employeeId/employee or direct ID strings
                 return sub.assignedTo.some(assigned => {
                     if (typeof assigned === 'object' && assigned !== null) {
-                        return assigned.employeeId?.toString() === employee.id.toString();
+                        // Check both employeeId (legacy/frontend) and employee (backend schema)
+                        return (assigned.employeeId && assigned.employeeId.toString() === employee.id.toString()) ||
+                            (assigned.employee && (
+                                // handle populated employee object or direct ID
+                                (typeof assigned.employee === 'object' ? assigned.employee.id === employee.id.toString() || assigned.employee._id === employee.id.toString() : assigned.employee.toString() === employee.id.toString())
+                            ));
                     }
                     // Assume assigned is a string ID
                     return assigned?.toString() === employee.id.toString();
@@ -419,7 +441,8 @@ const EmployeeProfile = () => {
             }
             // If assignedTo is an object
             if (typeof sub.assignedTo === 'object' && sub.assignedTo !== null) {
-                return sub.assignedTo.employeeId?.toString() === employee.id.toString();
+                return (sub.assignedTo.employeeId && sub.assignedTo.employeeId.toString() === employee.id.toString()) ||
+                    (sub.assignedTo.employee && sub.assignedTo.employee.toString() === employee.id.toString());
             }
             // If assignedTo is a string (could be name or ID)
             const assignedStr = sub.assignedTo?.toString();
@@ -443,11 +466,17 @@ const EmployeeProfile = () => {
         if (sub.status === 'Paused') {
             status = 'Paused';
         } else if (Array.isArray(sub.assignedTo)) {
-            const assignment = sub.assignedTo.find(a =>
-                (typeof a === 'object' && a?.employeeId?.toString() === employee.id.toString()) ||
-                (a?.toString() === employee.id.toString())
-            );
-            if (typeof assignment === 'object') {
+            const assignment = sub.assignedTo.find(a => {
+                if (typeof a === 'object' && a !== null) {
+                    return (a.employeeId && a.employeeId.toString() === employee.id.toString()) ||
+                        (a.employee && (
+                            (typeof a.employee === 'object' ? a.employee.id === employee.id.toString() || a.employee._id === employee.id.toString() : a.employee.toString() === employee.id.toString())
+                        ));
+                }
+                return a?.toString() === employee.id.toString();
+            });
+
+            if (typeof assignment === 'object' && assignment !== null) {
                 if (assignment.status) status = assignment.status;
                 if (assignment.startDate) startDate = assignment.startDate;
             }

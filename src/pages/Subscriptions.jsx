@@ -3,7 +3,7 @@ import {
     Card, CardBody, Button, Row, Col, Badge, Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input, InputGroup, InputGroupText, CardTitle,
     UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem
 } from 'reactstrap';
-import { Plus, Globe, Server, Shield, UserPlus, Search, PlayCircle, PauseCircle, Trash2, Edit, MoreVertical, Briefcase } from 'lucide-react';
+import { Plus, Globe, Server, Shield, UserPlus, Search, PlayCircle, PauseCircle, Trash2, Edit, MoreVertical, Briefcase, Check } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 import DateRangeFilter from '../components/DateRangeFilter';
 
@@ -147,18 +147,32 @@ const Subscriptions = () => {
         const match = sub.price.match(/\$([/\d.,]+)\/mo/);
         const numericPrice = match ? match[1].replace(/,/g, '') : '';
 
-        const assignedEmployeeIds = (sub.assignedTo || []).map(assignment =>
-            typeof assignment === 'string' ? assignment : assignment.employeeId
-        );
+        const assignedEmployeeIds = (sub.assignedTo || []).map(assignment => {
+            if (typeof assignment === 'string') return assignment;
+            // Handle both employeeId and employee fields, and populated objects
+            const id = assignment.employeeId || assignment.employee;
+            if (typeof id === 'object' && id !== null) return id._id || id.id || id.toString();
+            return id;
+        }).filter(id => id);
 
         const selectedProjects = sub.selectedProjects || [];
         const selectedEmployees = assignedEmployeeIds;
+
+        // Helper function to format date to YYYY-MM-DD
+        const formatDateForInput = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
 
         setFormData({
             name: sub.name,
             price: numericPrice,
             type: sub.type,
-            startDate: sub.startDate || '',
+            startDate: formatDateForInput(sub.startDate),
             selectedProjects: selectedProjects,
             selectedEmployees: selectedEmployees
         });
@@ -733,8 +747,24 @@ const Subscriptions = () => {
                                             <div className="d-flex align-items-center gap-2">
                                                 <div className="d-flex" style={{ marginLeft: '0' }}>
                                                     {activeEmployees.slice(0, 4).map((assignment, idx) => {
-                                                        const empId = typeof assignment === 'string' ? assignment : assignment.employeeId;
-                                                        const emp = employees.find(e => e.id.toString() === empId);
+                                                        // Handle both string IDs and object assignments with employee/employeeId
+                                                        let lookupId;
+                                                        if (typeof assignment === 'string') {
+                                                            lookupId = assignment;
+                                                        } else if (typeof assignment === 'object') {
+                                                            // Check employee first (backend), then employeeId (legacy/frontend)
+                                                            const rawId = assignment.employee || assignment.employeeId;
+                                                            // If rawId is an object (populated), get its _id or id
+                                                            lookupId = typeof rawId === 'object' ? (rawId._id || rawId.id) : rawId;
+                                                        }
+
+                                                        if (!lookupId) return null;
+
+                                                        const emp = employees.find(e =>
+                                                            e.id.toString() === lookupId.toString() ||
+                                                            (e.employeeId && e.employeeId.toString() === lookupId.toString())
+                                                        );
+
                                                         if (!emp) return null;
 
                                                         return <AvatarItem key={idx} emp={emp} idx={idx} />;
@@ -933,12 +963,20 @@ const Subscriptions = () => {
                                                             }}
                                                             style={{ cursor: 'pointer' }}
                                                         >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => { }}
-                                                                className="me-3"
-                                                            />
+                                                            <div
+                                                                className="d-flex align-items-center justify-content-center rounded me-3"
+                                                                style={{
+                                                                    width: '20px',
+                                                                    height: '20px',
+                                                                    minWidth: '20px',
+                                                                    border: '1px solid',
+                                                                    borderColor: isSelected ? '#0d3b2e' : '#6c757d',
+                                                                    backgroundColor: isSelected ? '#0d3b2e' : 'white',
+                                                                    transition: 'all 0.2s ease'
+                                                                }}
+                                                            >
+                                                                {isSelected && <Check size={14} color="white" strokeWidth={3} />}
+                                                            </div>
                                                             <div>
                                                                 <div className="fw-medium text-dark">{project.title}</div>
                                                                 <small className="text-muted">{project.status}</small>
@@ -1010,12 +1048,20 @@ const Subscriptions = () => {
                                                             }}
                                                             style={{ cursor: 'pointer' }}
                                                         >
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => { }}
-                                                                className="me-3"
-                                                            />
+                                                            <div
+                                                                className="d-flex align-items-center justify-content-center rounded me-3"
+                                                                style={{
+                                                                    width: '20px',
+                                                                    height: '20px',
+                                                                    minWidth: '20px',
+                                                                    border: '1px solid',
+                                                                    borderColor: isSelected ? '#0d3b2e' : '#6c757d',
+                                                                    backgroundColor: isSelected ? '#0d3b2e' : 'white',
+                                                                    transition: 'all 0.2s ease'
+                                                                }}
+                                                            >
+                                                                {isSelected && <Check size={14} color="white" strokeWidth={3} />}
+                                                            </div>
                                                             <div>
                                                                 <div className="fw-medium text-dark">{employee.name}</div>
                                                                 <small className="text-muted">{employee.role} • {employee.department}</small>

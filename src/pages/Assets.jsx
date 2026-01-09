@@ -95,10 +95,14 @@ const Assets = () => {
         }
     };
 
-    // Get employee details by name
-    const getEmployeeDetails = (employeeName) => {
-        if (!employeeName) return null;
-        return employees.find(emp => emp.name === employeeName);
+    // Get employee details by ID or name
+    const getEmployeeDetails = (identifier) => {
+        if (!identifier) return null;
+        return employees.find(emp =>
+            emp.id.toString() === identifier.toString() ||
+            (emp.employeeId && emp.employeeId.toString() === identifier.toString()) ||
+            emp.name === identifier
+        );
     };
 
     // Helper function to format price with commas
@@ -563,6 +567,7 @@ const Assets = () => {
                                 {currentAssets.length > 0 ? (
                                     currentAssets.map((asset) => {
                                         const Icon = getIcon(asset.type);
+                                        const assignedEmp = getEmployeeDetails(asset.assignedTo);
                                         return (
                                             <tr key={asset.id}>
                                                 {showSelectionMode && (
@@ -612,9 +617,9 @@ const Assets = () => {
                                                         >
                                                             <div className="d-flex align-items-center gap-2" style={{ cursor: 'pointer' }}>
                                                                 <User size={14} className="text-muted" />
-                                                                <span className="text-dark">{asset.assignedTo}</span>
+                                                                <span className="text-dark">{assignedEmp ? assignedEmp.name : asset.assignedTo}</span>
                                                             </div>
-                                                            {hoveredEmployee === asset.id && getEmployeeDetails(asset.assignedTo) && (
+                                                            {hoveredEmployee === asset.id && assignedEmp && (
                                                                 <div style={{
                                                                     position: 'absolute',
                                                                     bottom: '100%',
@@ -634,8 +639,8 @@ const Assets = () => {
                                                                     animation: 'tooltipFadeIn 0.15s ease-in forwards'
                                                                 }}>
                                                                     <div className="text-start">
-                                                                        <div><strong>Designation:</strong> {getEmployeeDetails(asset.assignedTo).role}</div>
-                                                                        <div><strong>Email:</strong> {getEmployeeDetails(asset.assignedTo).email}</div>
+                                                                        <div><strong>Designation:</strong> {assignedEmp.role}</div>
+                                                                        <div><strong>Email:</strong> {assignedEmp.email}</div>
                                                                     </div>
                                                                     <div style={{
                                                                         position: 'absolute',
@@ -985,10 +990,21 @@ const Assets = () => {
                                             pointerEvents: (!isEditMode && formData.quantity > 1) ? 'none' : 'auto'
                                         }}>
                                             <div
-                                                className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${!formData.assignedTo ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
+                                                className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${!formData.assignedTo ? 'bg-light' : 'hover-bg-light'}`}
                                                 onClick={() => setFormData(prev => ({ ...prev, assignedTo: '', status: 'Available' }))}
                                                 style={{ cursor: 'pointer' }}
                                             >
+                                                <div
+                                                    className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${!formData.assignedTo ? 'border-primary' : 'bg-white border-secondary'}`}
+                                                    style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        minWidth: '20px',
+                                                        transition: 'all 0.2s ease',
+                                                        boxShadow: !formData.assignedTo ? 'inset 0 0 0 4px #0d3b2e' : 'none',
+                                                        borderColor: !formData.assignedTo ? '#0d3b2e' : '#6c757d'
+                                                    }}
+                                                ></div>
                                                 <div className="fw-medium text-dark">-- Available --</div>
                                             </div>
                                             {employees
@@ -998,14 +1014,25 @@ const Assets = () => {
                                                     emp.department.toLowerCase().includes(employeeSearch.toLowerCase())
                                                 )
                                                 .map(emp => {
-                                                    const isSelected = formData.assignedTo === emp.name;
+                                                    const isSelected = formData.assignedTo === emp.id.toString() || formData.assignedTo === emp.name;
                                                     return (
                                                         <div
                                                             key={emp.id}
                                                             className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
-                                                            onClick={() => setFormData(prev => ({ ...prev, assignedTo: emp.name, status: 'Assigned' }))}
+                                                            onClick={() => setFormData(prev => ({ ...prev, assignedTo: emp.id.toString(), status: 'Assigned' }))}
                                                             style={{ cursor: 'pointer' }}
                                                         >
+                                                            <div
+                                                                className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${isSelected ? 'border-primary' : 'bg-white border-secondary'}`}
+                                                                style={{
+                                                                    width: '20px',
+                                                                    height: '20px',
+                                                                    minWidth: '20px',
+                                                                    transition: 'all 0.2s ease',
+                                                                    boxShadow: isSelected ? 'inset 0 0 0 4px #0d3b2e' : 'none',
+                                                                    borderColor: isSelected ? '#0d3b2e' : '#6c757d'
+                                                                }}
+                                                            ></div>
                                                             <div>
                                                                 <div className="fw-medium text-dark">{emp.name}</div>
                                                                 <small className="text-muted">{emp.role} • {emp.department}</small>

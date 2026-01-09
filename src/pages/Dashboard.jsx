@@ -196,12 +196,17 @@ const Dashboard = () => {
     // Salary & Payroll Analytics
     const salaryMetrics = useMemo(() => {
         const activeEmployees = employees.filter(e => e.status === 'Active');
-        const totalPayroll = activeEmployees.reduce((sum, emp) => {
+        // Calculate annual payroll
+        const totalAnnualPayroll = activeEmployees.reduce((sum, emp) => {
             const salary = parseFloat(String(emp.salary).replace(/,/g, '')) || 0;
             return sum + salary;
         }, 0);
 
-        const averageSalary = activeEmployees.length > 0 ? totalPayroll / activeEmployees.length : 0;
+        // Calculate monthly payroll (annual / 12)
+        const totalMonthlyPayroll = totalAnnualPayroll / 12;
+
+        const averageSalary = activeEmployees.length > 0 ? totalAnnualPayroll / activeEmployees.length : 0;
+        const averageMonthlySalary = averageSalary / 12;
 
         // Salary by department
         const deptSalaries = {};
@@ -215,8 +220,10 @@ const Dashboard = () => {
         });
 
         return {
-            totalPayroll,
+            totalAnnualPayroll,
+            totalMonthlyPayroll,
             averageSalary,
+            averageMonthlySalary,
             deptSalaries,
         };
     }, [employees]);
@@ -890,13 +897,99 @@ const Dashboard = () => {
             employees.forEach(emp => {
                 const joinDate = new Date(emp.joinDate);
 
-                // Check if employee was working during this month
-                const wasWorkingThisMonth = joinDate <= monthEnd &&
-                    (!emp.lastWorkingDate || new Date(emp.lastWorkingDate) >= monthStart);
+                // Payroll rules:
+                // 1. If employee joins mid-month, pay pro-rated salary for days worked
+                // 2. If employee leaves mid-month, pay pro-rated salary for days worked
 
-                if (wasWorkingThisMonth) {
-                    const salary = parseFloat(String(emp.salary).replace(/,/g, '')) || 0;
-                    monthlySalary += salary;
+                let shouldIncludeSalary = false;
+                let salaryMultiplier = 1.0; // Default: full month salary
+
+                // Check if employee had joined by the end of this month
+                if (joinDate <= monthEnd) {
+                    if (!emp.lastWorkingDate) {
+                        // Employee is still active (or On Leave), include salary
+                        shouldIncludeSalary = true;
+
+                        // Check if they joined during this month (pro-rate salary)
+                        if (joinDate >= monthStart && joinDate <= monthEnd) {
+                            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+                            const dayJoined = joinDate.getDate();
+                            const daysWorked = daysInMonth - dayJoined + 1;
+                            salaryMultiplier = daysWorked / daysInMonth;
+                        }
+
+                        // Handle Unpaid Leaves
+                        // Check dates regardless of current status to ensure historical accuracy
+                        if (emp.leaveStartDate && emp.leaveEndDate && emp.unpaidLeaveDays > 0) {
+                            const leaveStart = new Date(emp.leaveStartDate);
+                            const leaveEnd = new Date(emp.leaveEndDate);
+
+                            // Calculate when unpaid leave starts (after paid days)
+                            // Assuming paid days are taken first
+                            const unpaidStart = new Date(leaveStart);
+                            unpaidStart.setDate(leaveStart.getDate() + (emp.paidLeaveDays || 0));
+
+                            // Check for overlap between Unpaid Window and Current Month
+                            const overlapStart = unpaidStart > monthStart ? unpaidStart : monthStart;
+                            const overlapEnd = leaveEnd < monthEnd ? leaveEnd : monthEnd;
+
+                            if (overlapStart <= overlapEnd) {
+                                const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+                                const diffTime = Math.abs(overlapEnd - overlapStart);
+                                const unpaidDaysInMonth = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+                                // Deduct unpaid portion
+                                salaryMultiplier -= (unpaidDaysInMonth / daysInMonth);
+                                if (salaryMultiplier < 0) salaryMultiplier = 0;
+                            }
+                        }
+
+                    } else {
+                        const lastWorkingDate = new Date(emp.lastWorkingDate);
+
+                        // If they left before this month started, don't include
+                        if (lastWorkingDate < monthStart) {
+                            shouldIncludeSalary = false;
+                        }
+                        // If they left during this month, pro-rate the salary
+                        else if (lastWorkingDate >= monthStart && lastWorkingDate <= monthEnd) {
+                            shouldIncludeSalary = true;
+
+                            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+
+                            // If they also joined during this month
+                            if (joinDate >= monthStart && joinDate <= monthEnd) {
+                                // Calculate days between join and leave
+                                const dayJoined = joinDate.getDate();
+                                const dayLeft = lastWorkingDate.getDate();
+                                const daysWorked = dayLeft - dayJoined + 1; // +1 to include both days
+                                salaryMultiplier = daysWorked / daysInMonth;
+                            } else {
+                                // Joined before this month, calculate from month start to leave date
+                                const dayLeft = lastWorkingDate.getDate();
+                                salaryMultiplier = dayLeft / daysInMonth;
+                            }
+                        }
+                        // If they left after this month, include salary
+                        else if (lastWorkingDate > monthEnd) {
+                            shouldIncludeSalary = true;
+
+                            // Check if they joined during this month (pro-rate salary)
+                            if (joinDate >= monthStart && joinDate <= monthEnd) {
+                                const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+                                const dayJoined = joinDate.getDate();
+                                const daysWorked = daysInMonth - dayJoined + 1;
+                                salaryMultiplier = daysWorked / daysInMonth;
+                            }
+                        }
+                    }
+                }
+
+                if (shouldIncludeSalary) {
+                    // Convert annual salary to monthly by dividing by 12
+                    const annualSalary = parseFloat(String(emp.salary).replace(/,/g, '')) || 0;
+                    const monthlySalaryAmount = (annualSalary / 12) * salaryMultiplier;
+                    monthlySalary += monthlySalaryAmount;
                 }
             });
             salaryData.push(monthlySalary);
@@ -1160,7 +1253,14 @@ const Dashboard = () => {
                                 </div>
                             </div>
                             <div>
-                                <h2 className="mb-1 fw-bold text-white">${salaryMetrics.totalPayroll.toLocaleString()}</h2>
+                                <h2 className="mb-1 fw-bold text-white">
+                                    ${(() => {
+                                        // Get current month's salary from chart data (last data point)
+                                        const lastIndex = monthlySpendingData.datasets[0].data.length - 1;
+                                        const currentMonthSalary = monthlySpendingData.datasets[0].data[lastIndex] || 0;
+                                        return currentMonthSalary.toLocaleString();
+                                    })()}
+                                </h2>
                                 <p className="mb-0 text-white-50 small">EMPLOYEE PAYROLL</p>
                             </div>
                         </CardBody>
@@ -1321,10 +1421,19 @@ const Dashboard = () => {
                                 <span className="text-muted small">Total Monthly Cost</span>
                                 <span className="h5 mb-0 fw-bold" style={{ color: '#fbbf24' }}>
                                     ${(() => {
+                                        // Get the last month's data from the chart (current month = January)
                                         let total = 0;
-                                        if (visibleDatasets.salaries) total += salaryMetrics.totalPayroll;
-                                        if (visibleDatasets.subscriptions) total += subscriptionCostMetrics.subscriptionOnlyCost;
-                                        if (visibleDatasets.assets) total += subscriptionCostMetrics.currentMonthAssetCost;
+                                        const lastIndex = monthlySpendingData.datasets[0].data.length - 1;
+
+                                        if (visibleDatasets.salaries) {
+                                            total += monthlySpendingData.datasets[0].data[lastIndex] || 0;
+                                        }
+                                        if (visibleDatasets.subscriptions) {
+                                            total += monthlySpendingData.datasets[1].data[lastIndex] || 0;
+                                        }
+                                        if (visibleDatasets.assets) {
+                                            total += monthlySpendingData.datasets[2].data[lastIndex] || 0;
+                                        }
                                         return total.toLocaleString();
                                     })()}
                                 </span>

@@ -114,3 +114,16 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# macOS system files
+.DS_Store
+
+# Documentation and utilities (not required for app functionality)
+extras/
+# Documentation and explanations
+*.md
+!README.md
+!server/README.md
+
+# Exclude backend from frontend repo
+server/

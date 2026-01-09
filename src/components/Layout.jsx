@@ -1,10 +1,12 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
     LayoutDashboard,
     Users,
     Briefcase,
     CreditCard,
     Monitor,
+    Settings as SettingsIcon,
     LogOut,
     User,
     ChevronDown
@@ -13,6 +15,13 @@ import { Container, Nav, NavItem, Button } from 'reactstrap';
 
 const Sidebar = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { logout } = useAuth();
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
 
     const menuItems = [
         { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -20,6 +29,7 @@ const Sidebar = () => {
         { path: '/projects', icon: Briefcase, label: 'Projects' },
         { path: '/subscriptions', icon: CreditCard, label: 'Subscriptions' },
         { path: '/assets', icon: Monitor, label: 'Assets' },
+        { path: '/settings', icon: SettingsIcon, label: 'Settings' },
     ];
 
     return (
@@ -71,6 +81,7 @@ const Sidebar = () => {
                     color="danger"
                     outline
                     block
+                    onClick={handleLogout}
                     className="d-flex align-items-center justify-content-center gap-2 border-0 hover-shadow"
                     style={{
                         transition: 'all 0.2s',
@@ -88,6 +99,7 @@ const Sidebar = () => {
 
 const Header = () => {
     const location = useLocation();
+    const { user } = useAuth();
 
     const getPageTitle = (path) => {
         switch (path) {
@@ -105,7 +117,7 @@ const Header = () => {
             <div className="d-flex align-items-center gap-4">
                 <div>
                     <h4 className="mb-0 fw-bold text-dark">{getPageTitle(location.pathname)}</h4>
-                    <p className="mb-0 text-muted small">Welcome back, Admin</p>
+                    <p className="mb-0 text-muted small">Welcome back, {user?.username || 'Admin'}</p>
                 </div>
             </div>
 
@@ -122,8 +134,8 @@ const Header = () => {
                         <User size={20} className="text-white" />
                     </div>
                     <div className="d-none d-md-block text-start">
-                        <p className="mb-0 fw-bold text-dark" style={{ fontSize: '0.9rem' }}>Admin User</p>
-                        <small className="text-muted d-block" style={{ fontSize: '0.75rem', marginTop: '-2px' }}>Super Admin</small>
+                        <p className="mb-0 fw-bold text-dark" style={{ fontSize: '0.9rem' }}>{user?.username || 'Admin User'}</p>
+                        <small className="text-muted d-block" style={{ fontSize: '0.75rem', marginTop: '-2px' }}>{user?.role === 'admin' ? 'Super Admin' : user?.role || 'User'}</small>
                     </div>
                     <ChevronDown size={16} className="text-muted ms-1" />
                 </div>

@@ -6,7 +6,7 @@ import {
     UncontrolledDropdown, DropdownToggle, DropdownMenu, DropdownItem,
     Pagination, PaginationItem, PaginationLink, UncontrolledTooltip
 } from 'reactstrap';
-import { Search, Plus, Edit, Trash2, User, Save, Calendar, ChevronDown } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, User, Save, Calendar, ChevronDown, Check } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 import DateRangeFilter from '../components/DateRangeFilter';
 
@@ -42,7 +42,12 @@ const EmployeeList = () => {
         reportingTo: '',
         department: '',
         status: 'Active',
-        reportees: []
+        reportees: [],
+        leaveStartDate: '',
+        leaveEndDate: '',
+        totalLeaveDays: 0,
+        paidLeaveDays: 0,
+        unpaidLeaveDays: 0
     });
     const [reporteeSearch, setReporteeSearch] = useState('');
     const [reportingToSearch, setReportingToSearch] = useState('');
@@ -121,7 +126,12 @@ const EmployeeList = () => {
             reportingTo: employee.reportingTo || '',
             department: employee.department,
             status: employee.status || 'Active',
-            reportees: currentReportees
+            reportees: currentReportees,
+            leaveStartDate: employee.leaveStartDate ? employee.leaveStartDate.split('T')[0] : '',
+            leaveEndDate: employee.leaveEndDate ? employee.leaveEndDate.split('T')[0] : '',
+            totalLeaveDays: employee.totalLeaveDays || 0,
+            paidLeaveDays: employee.paidLeaveDays || 0,
+            unpaidLeaveDays: employee.unpaidLeaveDays || 0
         });
         setIsEditMode(true);
         setEditingEmployeeId(employee.id);
@@ -179,40 +189,114 @@ const EmployeeList = () => {
 
         // Handle salary formatting
         if (name === 'salary') {
-            // Remove all non-digit characters
             const numericValue = value.replace(/[^\d]/g, '');
-            // Format with commas
             const formattedValue = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-
-            setFormData(prev => ({
-                ...prev,
-                [name]: formattedValue
-            }));
-            if (errors[name]) {
-                setErrors(prev => ({ ...prev, [name]: '' }));
-            }
+            setFormData(prev => ({ ...prev, [name]: formattedValue }));
+            if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
             return;
         }
 
         // Validate status change for project assignments
-        if (name === 'status' && (value === 'Inactive' || value === 'On Leave') && isEditMode) {
+        if (name === 'status' && value === 'Inactive' && isEditMode && projects) {
             const currentEmployeeName = formData.name;
+            const currentEmployeeId = editingEmployeeId ? editingEmployeeId.toString() : '';
 
             // Find all projects where this employee is involved
-            const assignedProjects = projects.filter(project =>
-                project.lead === currentEmployeeName ||
-                (project.team && project.team.includes(currentEmployeeName))
-            );
+            const assignedProjects = projects.filter(project => {
+                // Check if employee is Lead (by Name, ID, or Populated Name)
+                const isLead = (project.lead === currentEmployeeName) ||
+                    (project.leadName === currentEmployeeName) ||
+                    (project.lead && String(project.lead) === currentEmployeeId);
+
+                // Check if employee is Team Member (by Name, ID in team array, or Member Object)
+                const isMember = (project.team && project.team.includes(currentEmployeeName)) ||
+                    (project.team && project.team.map(String).includes(currentEmployeeId)) ||
+                    (project.teamMembers && project.teamMembers.some(m => m.name === currentEmployeeName || String(m.id) === currentEmployeeId || String(m.employeeId) === currentEmployeeId));
+
+                return isLead || isMember;
+            });
 
             if (assignedProjects.length > 0) {
-                const projectNames = assignedProjects.map(p => p.title).join(', ');
-                const errorMsg = `Cannot set status to ${value}. ${currentEmployeeName} is currently assigned to: ${projectNames}`;
+                const leadProjects = assignedProjects.filter(p =>
+                    (p.lead === currentEmployeeName) ||
+                    (p.leadName === currentEmployeeName) ||
+                    (String(p.lead) === currentEmployeeId)
+                ).map(p => p.title);
 
-                setErrors(prev => ({ ...prev, status: errorMsg }));
-                setWarningMessage(errorMsg);
+                const memberProjects = assignedProjects.filter(p =>
+                    !leadProjects.includes(p.title) // Simply exclude projects where they are lead to avoid duplication
+                ).map(p => p.title);
+
+                let warningMsg = `Action cannot be done. ${currentEmployeeName} is currently active in the following projects:\n\n`;
+
+                if (leadProjects.length > 0) {
+                    warningMsg += `• Project Lead for: ${leadProjects.join(', ')}\n`;
+                }
+                if (memberProjects.length > 0) {
+                    warningMsg += `• Team Member in: ${memberProjects.join(', ')}\n`;
+                }
+
+                warningMsg += `\nPlease reassign these projects before changing status to ${value}.`;
+
+                setWarningMessage(warningMsg);
                 setWarningModalOpen(true);
-                return; // Prevent the status change
+                return; // BLOCK the change
             }
+        }
+
+        // Handle Leave Calculations
+        if (name === 'leaveStartDate' || name === 'leaveEndDate') {
+            const startDate = name === 'leaveStartDate' ? value : formData.leaveStartDate;
+            const endDate = name === 'leaveEndDate' ? value : formData.leaveEndDate;
+
+            let totalDays = 0;
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                if (!isNaN(start) && !isNaN(end) && end >= start) {
+                    const diffTime = Math.abs(end - start);
+                    totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Inclusive of start day
+                }
+            }
+
+            setFormData(prev => ({
+                ...prev,
+                [name]: value,
+                totalLeaveDays: totalDays,
+                paidLeaveDays: 0,
+                unpaidLeaveDays: totalDays // Default all to unpaid initially
+            }));
+            return;
+        }
+
+        if (name === 'paidLeaveDays') {
+            const paidDays = parseInt(value) || 0;
+            const totalDays = formData.totalLeaveDays;
+
+            // Ensure paid days don't exceed total days
+            if (paidDays <= totalDays) {
+                setFormData(prev => ({
+                    ...prev,
+                    [name]: paidDays,
+                    unpaidLeaveDays: totalDays - paidDays
+                }));
+            }
+            return;
+        }
+
+        if (name === 'unpaidLeaveDays') {
+            const unpaidDays = parseInt(value) || 0;
+            const totalDays = formData.totalLeaveDays;
+
+            // Ensure unpaid days don't exceed total days
+            if (unpaidDays <= totalDays) {
+                setFormData(prev => ({
+                    ...prev,
+                    [name]: unpaidDays,
+                    paidLeaveDays: totalDays - unpaidDays
+                }));
+            }
+            return;
         }
 
         setFormData(prev => ({
@@ -240,15 +324,56 @@ const EmployeeList = () => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (validate()) {
-            // Remove commas from salary before saving
-            const submissionData = {
-                ...formData,
-                salary: String(formData.salary).replace(/,/g, '')
-            };
-
             if (isEditMode) {
+                // In edit mode, we're only updating the status
+                const submissionData = {
+                    status: formData.status
+                };
+
+                // If status is being changed to Inactive, set lastWorkingDate to today
+                if (formData.status === 'Inactive') {
+                    const today = new Date().toISOString().split('T')[0];
+                    submissionData.lastWorkingDate = today;
+                }
+                // If status is being changed to Active, clear lastWorkingDate
+                else if (formData.status === 'Active') {
+                    submissionData.lastWorkingDate = null;
+                    submissionData.leaveStartDate = null;
+                    submissionData.leaveEndDate = null;
+                    submissionData.totalLeaveDays = 0;
+                    submissionData.paidLeaveDays = 0;
+                    submissionData.unpaidLeaveDays = 0;
+                }
+                // If status is On Leave, check dates
+                else if (formData.status === 'On Leave') {
+                    submissionData.leaveStartDate = formData.leaveStartDate;
+                    submissionData.leaveEndDate = formData.leaveEndDate;
+                    submissionData.totalLeaveDays = formData.totalLeaveDays;
+                    submissionData.paidLeaveDays = formData.paidLeaveDays;
+                    submissionData.unpaidLeaveDays = formData.unpaidLeaveDays;
+
+                    // If Start Date is in the future, 'Schedule' the leave but keep status Active
+                    if (formData.leaveStartDate) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const startDate = new Date(formData.leaveStartDate);
+                        startDate.setHours(0, 0, 0, 0);
+
+                        if (startDate > today) {
+                            submissionData.status = 'Active';
+                            // We could show a toast here, but for now we basically just don't flip the status tag
+                        }
+                    }
+                }
+
                 updateEmployee(editingEmployeeId, submissionData);
             } else {
+                // For new employee, send all data
+                const submissionData = {
+                    ...formData,
+                    salary: String(formData.salary).replace(/,/g, '')
+                };
+
                 // Generate unique 6-digit employee ID
                 const generateUniqueEmployeeId = () => {
                     const existingIds = employees.map(emp => emp.employeeId?.toString());
@@ -681,6 +806,133 @@ const EmployeeList = () => {
                                         </UncontrolledDropdown>
                                         {errors.status && <div className="invalid-feedback d-block">{errors.status}</div>}
                                     </FormGroup>
+
+                                    {/* Leave Details - Show only when status is "On Leave" */}
+                                    {formData.status === 'On Leave' && (
+                                        <div className="mt-4 p-3 bg-light rounded border">
+                                            <h6 className="fw-bold text-dark mb-3">Leave Details</h6>
+
+                                            <Row>
+                                                <Col md={6}>
+                                                    <FormGroup>
+                                                        <Label for="leaveStartDate" className="fw-medium">Leave Start Date</Label>
+                                                        <Input
+                                                            id="leaveStartDate"
+                                                            name="leaveStartDate"
+                                                            type="date"
+                                                            value={formData.leaveStartDate}
+                                                            onChange={handleChange}
+                                                        />
+                                                    </FormGroup>
+                                                </Col>
+                                                <Col md={6}>
+                                                    <FormGroup>
+                                                        <Label for="leaveEndDate" className="fw-medium">Leave End Date</Label>
+                                                        <Input
+                                                            id="leaveEndDate"
+                                                            name="leaveEndDate"
+                                                            type="date"
+                                                            value={formData.leaveEndDate}
+                                                            onChange={handleChange}
+                                                            min={formData.leaveStartDate}
+                                                        />
+                                                    </FormGroup>
+                                                </Col>
+                                            </Row>
+
+                                            <Row>
+                                                <Col md={4}>
+                                                    <FormGroup>
+                                                        <Label for="totalLeaveDays" className="fw-medium">Total Leave Days</Label>
+                                                        <Input
+                                                            id="totalLeaveDays"
+                                                            name="totalLeaveDays"
+                                                            type="number"
+                                                            min="0"
+                                                            value={formData.totalLeaveDays}
+                                                            readOnly
+                                                            className="bg-white"
+                                                        />
+                                                        <small className="text-muted">Auto-calculated</small>
+                                                    </FormGroup>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <FormGroup>
+                                                        <Label for="paidLeaveDays" className="fw-medium">Paid Leave Days</Label>
+                                                        <Input
+                                                            id="paidLeaveDays"
+                                                            name="paidLeaveDays"
+                                                            type="number"
+                                                            min="0"
+                                                            max={formData.totalLeaveDays}
+                                                            value={formData.paidLeaveDays}
+                                                            onChange={handleChange}
+                                                        />
+                                                    </FormGroup>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <FormGroup>
+                                                        <Label for="unpaidLeaveDays" className="fw-medium">Unpaid Leave Days</Label>
+                                                        <Input
+                                                            id="unpaidLeaveDays"
+                                                            name="unpaidLeaveDays"
+                                                            type="number"
+                                                            min="0"
+                                                            max={formData.totalLeaveDays}
+                                                            value={formData.unpaidLeaveDays}
+                                                            onChange={handleChange}
+                                                        />
+                                                    </FormGroup>
+                                                </Col>
+                                            </Row>
+                                        </div>
+                                    )}
+
+                                    {/* Upcoming Leave Notification for Active Employees */}
+                                    {formData.status === 'Active' && formData.leaveStartDate && (
+                                        (() => {
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0);
+                                            const startDate = new Date(formData.leaveStartDate);
+                                            startDate.setHours(0, 0, 0, 0);
+
+                                            if (startDate > today) {
+                                                return (
+                                                    <div className="mt-4 p-3 bg-light rounded border border-warning">
+                                                        <div className="d-flex align-items-center gap-2 mb-2">
+                                                            <Calendar size={18} className="text-warning" />
+                                                            <h6 className="fw-bold text-dark mb-0">Upcoming Leave Scheduled</h6>
+                                                        </div>
+                                                        <p className="text-muted small mb-2">
+                                                            This employee is scheduled to go on leave soon.
+                                                        </p>
+                                                        <div className="p-2 bg-white rounded border d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <div className="fw-bold text-dark">
+                                                                    {new Date(formData.leaveStartDate).toLocaleDateString()} - {new Date(formData.leaveEndDate).toLocaleDateString()}
+                                                                </div>
+                                                                <div className="small text-muted">
+                                                                    {formData.totalLeaveDays} Days ({formData.paidLeaveDays} Paid, {formData.unpaidLeaveDays} Unpaid)
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                size="sm"
+                                                                color="light"
+                                                                className="border"
+                                                                onClick={() => {
+                                                                    // Switch to On Leave mode to edit details
+                                                                    handleChange({ target: { name: 'status', value: 'On Leave' } });
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()
+                                    )}
                                 </div>
                             ) : (
                                 <>
@@ -828,10 +1080,18 @@ const EmployeeList = () => {
                                                                     style={{ cursor: 'pointer' }}
                                                                 >
                                                                     <div
-                                                                        className={`d-flex align-items-center justify-content-center rounded border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
-                                                                        style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                                        className="d-flex align-items-center justify-content-center rounded me-3"
+                                                                        style={{
+                                                                            width: '20px',
+                                                                            height: '20px',
+                                                                            minWidth: '20px',
+                                                                            border: '1px solid',
+                                                                            borderColor: isSelected ? '#0d3b2e' : '#6c757d',
+                                                                            backgroundColor: isSelected ? '#0d3b2e' : 'white',
+                                                                            transition: 'all 0.2s ease'
+                                                                        }}
                                                                     >
-                                                                        {isSelected && <div className="bg-primary rounded-circle p-1"></div>}
+                                                                        {isSelected && <Check size={14} color="white" strokeWidth={3} />}
                                                                     </div>
                                                                     <div>
                                                                         <div className="fw-medium text-dark">{emp.name}</div>
@@ -873,10 +1133,16 @@ const EmployeeList = () => {
                                                         style={{ cursor: 'pointer' }}
                                                     >
                                                         <div
-                                                            className={`d-flex align-items-center justify-content-center rounded border me-3 ${!formData.reportingTo ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
-                                                            style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                            className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${!formData.reportingTo ? 'border-primary' : 'bg-white border-secondary'}`}
+                                                            style={{
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                minWidth: '20px',
+                                                                transition: 'all 0.2s ease',
+                                                                boxShadow: !formData.reportingTo ? 'inset 0 0 0 4px #0d3b2e' : 'none',
+                                                                borderColor: !formData.reportingTo ? '#0d3b2e' : '#6c757d'
+                                                            }}
                                                         >
-                                                            {!formData.reportingTo && <div className="bg-primary rounded-circle p-1"></div>}
                                                         </div>
                                                         <div>
                                                             <div className="fw-medium text-dark">No Manager</div>
@@ -898,10 +1164,16 @@ const EmployeeList = () => {
                                                                     style={{ cursor: 'pointer' }}
                                                                 >
                                                                     <div
-                                                                        className={`d-flex align-items-center justify-content-center rounded border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
-                                                                        style={{ width: '20px', height: '20px', minWidth: '20px' }}
+                                                                        className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${isSelected ? 'border-primary' : 'bg-white border-secondary'}`}
+                                                                        style={{
+                                                                            width: '20px',
+                                                                            height: '20px',
+                                                                            minWidth: '20px',
+                                                                            transition: 'all 0.2s ease',
+                                                                            boxShadow: isSelected ? 'inset 0 0 0 4px #0d3b2e' : 'none',
+                                                                            borderColor: isSelected ? '#0d3b2e' : '#6c757d'
+                                                                        }}
                                                                     >
-                                                                        {isSelected && <div className="bg-primary rounded-circle p-1"></div>}
                                                                     </div>
                                                                     <div>
                                                                         <div className="fw-medium text-dark">{emp.name}</div>
@@ -971,9 +1243,9 @@ const EmployeeList = () => {
                 </Modal>
 
                 {/* Warning Modal */}
-                <Modal isOpen={warningModalOpen} toggle={() => setWarningModalOpen(false)}>
-                    <ModalHeader toggle={() => setWarningModalOpen(false)}>Warning</ModalHeader>
-                    <ModalBody>{warningMessage}</ModalBody>
+                <Modal isOpen={warningModalOpen} toggle={() => setWarningModalOpen(false)} centered>
+                    <ModalHeader toggle={() => setWarningModalOpen(false)} className="text-danger">Action Blocked</ModalHeader>
+                    <ModalBody style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{warningMessage}</ModalBody>
                     <ModalFooter>
                         <Button
                             onClick={() => setWarningModalOpen(false)}

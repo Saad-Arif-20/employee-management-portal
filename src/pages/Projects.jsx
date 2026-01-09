@@ -19,7 +19,7 @@ import {
     Label,
     Input
 } from 'reactstrap';
-import { Plus, MoreVertical, Calendar, Clock, Users, Save, X, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, MoreVertical, Calendar, Clock, Users, Save, X, Edit, Trash2, Search, Check } from 'lucide-react';
 import { useGlobal } from '../contexts/GlobalContext';
 
 const TeamMemberAvatar = ({ member, idx }) => {
@@ -162,19 +162,29 @@ const Projects = () => {
     };
 
     const handleEditClick = (project) => {
+        // Helper function to format date to YYYY-MM-DD
+        const formatDateForInput = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
         setFormData({
             title: project.title || '',
             description: project.description || '',
             status: project.status || 'Planning',
-            startDate: project.startDate || '',
-            deadline: project.deadline || '',
+            startDate: formatDateForInput(project.startDate),
+            deadline: formatDateForInput(project.deadline),
             lead: project.lead || '',
             team: project.team || [],
             completedDate: project.completedDate || null
         });
         setIsEditMode(true);
         setEditingProjectId(project.id);
-        setOriginalStartDate(project.startDate || '');
+        setOriginalStartDate(formatDateForInput(project.startDate));
         setOriginalTeamMembers(project.team || []);
         toggleModal();
     };
@@ -241,11 +251,14 @@ const Projects = () => {
             return;
         }
         setFormData(prev => {
-            const isSelected = prev.team.includes(employee.name);
+            const empId = employee.id.toString();
+            // Check for both ID and name for backward compatibility
+            const isSelected = prev.team.includes(empId) || prev.team.includes(employee.name);
+
             if (isSelected) {
-                return { ...prev, team: prev.team.filter(name => name !== employee.name) };
+                return { ...prev, team: prev.team.filter(id => id !== empId && id !== employee.name) };
             } else {
-                return { ...prev, team: [...prev.team, employee.name] };
+                return { ...prev, team: [...prev.team, empId] };
             }
         });
     };
@@ -692,14 +705,14 @@ const Projects = () => {
                                                     border: '2px solid rgba(255, 255, 255, 0.3)',
                                                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                                                 }}>
-                                                    {project.lead.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                    {(project.leadName || project.lead || '').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                                 </div>
                                                 <div>
                                                     <div style={{ fontSize: '0.7rem', color: 'rgba(255, 255, 255, 0.7)', fontWeight: '500' }}>
                                                         Project Lead
                                                     </div>
                                                     <div style={{ fontSize: '0.85rem', color: '#ffffff', fontWeight: '600' }}>
-                                                        {project.lead}
+                                                        {project.leadName || project.lead || 'Not assigned'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -710,10 +723,10 @@ const Projects = () => {
                                         <div className="d-flex align-items-center justify-content-between mt-3">
                                             <div className="d-flex align-items-center gap-2">
                                                 <div className="d-flex" style={{ marginLeft: '0' }}>
-                                                    {project.team.slice(0, 3).map((member, idx) => (
-                                                        <TeamMemberAvatar key={idx} member={member} idx={idx} />
+                                                    {(project.teamMembers || []).slice(0, 3).map((member, idx) => (
+                                                        <TeamMemberAvatar key={idx} member={member.name || member} idx={idx} />
                                                     ))}
-                                                    {project.team.length > 3 && (
+                                                    {(project.teamMembers || project.team || []).length > 3 && (
                                                         <div
                                                             style={{
                                                                 width: '32px',
@@ -731,12 +744,12 @@ const Projects = () => {
                                                                 zIndex: 0
                                                             }}
                                                         >
-                                                            +{project.team.length - 3}
+                                                            +{(project.teamMembers || project.team || []).length - 3}
                                                         </div>
                                                     )}
                                                 </div>
                                                 <small className="ms-1" style={{ fontSize: '0.8rem', fontWeight: '600', color: 'rgba(255, 255, 255, 0.9)' }}>
-                                                    {project.team.length === 0 ? 'No team members' : `${project.team.length} member${project.team.length !== 1 ? 's' : ''}`}
+                                                    {(project.teamMembers || project.team || []).length === 0 ? 'No team members' : `${(project.teamMembers || project.team || []).length} member${(project.teamMembers || project.team || []).length !== 1 ? 's' : ''}`}
                                                 </small>
                                             </div>
                                             <div
@@ -750,7 +763,7 @@ const Projects = () => {
                                             >
                                                 <Users size={14} color="#ffffff" />
                                                 <small style={{ fontSize: '0.8rem', fontWeight: '700', color: '#ffffff' }}>
-                                                    {project.team.length + 1}
+                                                    {(project.teamMembers || project.team || []).length + 1}
                                                 </small>
                                             </div>
                                         </div>
@@ -900,24 +913,31 @@ const Projects = () => {
                                                 emp.role.toLowerCase().includes(leadSearchTerm.toLowerCase())
                                             )
                                             .map(emp => {
-                                                const isSelected = formData.lead === emp.name;
+                                                // Check for both ID and name to handle legacy data
+                                                const isSelected = formData.lead === emp.id.toString() || formData.lead === emp.name;
                                                 return (
                                                     <div
                                                         key={emp.id}
                                                         className={`d-flex align-items-center p-2 mb-1 rounded cursor-pointer ${isSelected ? 'bg-primary bg-opacity-10' : 'hover-bg-light'}`}
                                                         onClick={() => {
-                                                            setFormData(prev => ({ ...prev, lead: emp.name }));
+                                                            setFormData(prev => ({ ...prev, lead: emp.id.toString() }));
                                                             if (errors.lead) {
                                                                 setErrors(prev => ({ ...prev, lead: '' }));
                                                             }
                                                         }}
                                                         style={{ cursor: 'pointer' }}
                                                     >
-                                                        <div className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${isSelected ? 'bg-primary border-primary' : 'bg-white border-secondary'}`}
-                                                            style={{ width: '20px', height: '20px', minWidth: '20px' }}
-                                                        >
-                                                            {isSelected && <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: 'white' }} />}
-                                                        </div>
+                                                        <div
+                                                            className={`d-flex align-items-center justify-content-center rounded-circle border me-3 ${isSelected ? 'border-primary' : 'bg-white border-secondary'}`}
+                                                            style={{
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                minWidth: '20px',
+                                                                transition: 'all 0.2s ease',
+                                                                boxShadow: isSelected ? 'inset 0 0 0 4px #0d3b2e' : 'none',
+                                                                borderColor: isSelected ? '#0d3b2e' : '#6c757d'
+                                                            }}
+                                                        ></div>
                                                         <div>
                                                             <div className="fw-medium text-dark">{emp.name}</div>
                                                             <small className="text-muted">{emp.role}</small>
@@ -945,20 +965,22 @@ const Projects = () => {
                                         {employees
                                             .filter(emp => emp.status === 'Active')
                                             .filter(emp => {
-                                                const isLead = formData.lead === emp.name;
+                                                // Exclude the project lead from team members
+                                                const isLead = formData.lead === emp.id.toString() || formData.lead === emp.name;
                                                 if (isLead) return false;
                                                 return emp.name.toLowerCase().includes(teamSearchTerm.toLowerCase()) ||
                                                     emp.role.toLowerCase().includes(teamSearchTerm.toLowerCase());
                                             })
                                             .sort((a, b) => {
-                                                const aSelected = originalTeamMembers.includes(a.name);
-                                                const bSelected = originalTeamMembers.includes(b.name);
+                                                const aSelected = originalTeamMembers.includes(a.id.toString()) || originalTeamMembers.includes(a.name);
+                                                const bSelected = originalTeamMembers.includes(b.id.toString()) || originalTeamMembers.includes(b.name);
                                                 if (aSelected && !bSelected) return -1;
                                                 if (!aSelected && bSelected) return 1;
                                                 return 0;
                                             })
                                             .map(emp => {
-                                                const isSelected = formData.team.includes(emp.name);
+                                                // Check both ID and name to handle legacy data
+                                                const isSelected = formData.team.includes(emp.id.toString()) || formData.team.includes(emp.name);
                                                 return (
                                                     <div
                                                         key={emp.id}
@@ -966,12 +988,20 @@ const Projects = () => {
                                                         onClick={() => toggleTeamMember(emp)}
                                                         style={{ cursor: 'pointer' }}
                                                     >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => { }}
-                                                            className="me-3"
-                                                        />
+                                                        <div
+                                                            className="d-flex align-items-center justify-content-center rounded me-3"
+                                                            style={{
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                minWidth: '20px',
+                                                                border: '1px solid',
+                                                                borderColor: isSelected ? '#0d3b2e' : '#6c757d',
+                                                                backgroundColor: isSelected ? '#0d3b2e' : 'white',
+                                                                transition: 'all 0.2s ease'
+                                                            }}
+                                                        >
+                                                            {isSelected && <Check size={14} color="white" strokeWidth={3} />}
+                                                        </div>
                                                         <div>
                                                             <div className="fw-medium text-dark">{emp.name}</div>
                                                             <small className="text-muted">{emp.role}</small>
