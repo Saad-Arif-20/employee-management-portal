@@ -117,13 +117,3 @@ dist
 
 # macOS system files
 .DS_Store
-
-# Documentation and utilities (not required for app functionality)
-extras/
-# Documentation and explanations
-*.md
-!README.md
-!server/README.md
-
-# Exclude backend from frontend repo
-server/
